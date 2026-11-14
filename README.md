@@ -13,12 +13,14 @@
 时区数据来自系统 IANA 数据库（`zoneinfo`）。
 
 ```
-python3 -I -m unittest discover -s tests -v     # 全部测试（含票价清分与 GPS 驻留）
+python3 -I -m unittest discover -s tests -v     # 全部测试（含票价清分、GPS 驻留与匿名出仓）
 python3 -I tools/build_fixtures.py              # 重新生成示例包
 python3 -I tools/build_fare_fixtures.py         # 重新生成票价规则包与清分批次
 python3 -I tools/fare_walkthrough.py            # 票价清分演练（手工账逐段核对）
 python3 -I tools/build_dwell_fixtures.py        # 重新生成 GPS 驻留静态包与采样
 python3 -I tools/dwell_walkthrough.py           # GPS 驻留演练（逐条证据与崩溃重开）
+python3 -I tools/build_anon_fixtures.py         # 生成匿名出仓手工样本（跨两个 GPS 作业）
+python3 -I tools/anon_walkthrough.py            # 匿名出仓演练（独立复核、崩溃重开、20 万采样测内存）
 ```
 
 ## 终端入口
@@ -511,3 +513,170 @@ board_utc, alight_utc`（UTC 整数秒）。行可乱序；每链 `leg_index` �
 `docs/FARE_WALKTHROUGH.md` 记录 `tools/fare_walkthrough.py` 的真实输出：手工逐段
 账与引擎逐字段比对、独立极简状态机二次复算、拒收见证、版本冲突、v1/v2 隔离与
 重开库逐字节复算。
+
+# 匿名化出仓：整段时空格序列的 k-车辆匿名（Anonymized egress）
+
+在 GPS 驻留作业之上新增**只出不进**的匿名化出仓通道：把已入库采样粗化成
+时空格序列，按**整段有序序列**分组，只交付至少有 `k` 个**不同车辆主体**
+共同支持的路径。它不是逐位置凑人数——即使一条行程经过的每个格都很常见，
+它的完整顺序仍可能独一无二，而稀有组规则保护的正是这种唯一性。全程仅
+Python 标准库 + SQLite，独立模块 `gtfs_store/anon.py`，不改动驻留判定与
+任何旧模块行为。
+
+```
+python3 -I tools/build_anon_fixtures.py     # 生成手工样本、清单与期望（dist/anon/）
+python3 -I tools/anon_walkthrough.py        # 端到端演练（输出即 docs/ANON_WALKTHROUGH.md）
+python3 -I -m unittest discover -s tests -v # 含 28 条匿名出仓专项测试
+```
+
+## 数据来源与成员清单（任何一项不合格就整次拒绝）
+
+采样**只**从已有 GPS 作业表读取（`dwell_job_runs` + `dwell_samples` 的
+原始 `observed_utc/lat/lon/sample_id/source_line`）：不重新导入定位文件，
+不读取、不派生任何驻留事实，静态表与实时通告一律不参加。
+
+请求通过成员清单 CSV 精确指定本次共享的运行实例，表头必须逐字一致：
+
+```
+job_id,run_id,vehicle_unit
+1,R1,VA
+2,R4,VD
+```
+
+- 每个 `(job_id, run_id)` 实例**只能登记一次**；实例必须存在、
+  `dwell_job_runs.status='processed'` 且有采样行，否则整次请求拒绝
+  （失败 run、零采样 run、未选择的作业都不参加，绝不悄悄跳过）。
+- `job_id` 为不带符号、不带前导零的十进制整数；`run_id` 与
+  `vehicle_unit` 是**不透明字符串**，不 trim、不补零、不转数字：
+  `"007"` 与 `"7"` 始终是两个车辆标识。同一辆车的多个 run 可共用一个
+  `vehicle_unit`；组支持数按不同 `vehicle_unit` 计数，**不按 run 数
+  （车次数）代替车辆数**。
+- 任何空字段、重复实例、不存在的引用或不符的表头都带清单物理行号报错，
+  退出码 `2`，且不留下任何匿名作业记录。
+
+## 网格级别参数（不从数据学习任何边界）
+
+调用方给出整数 `k >= 2` 和从细到粗的级别 JSON（数组，或
+`{"levels": [...]}`），每级含两个正整数：
+
+```json
+[
+  {"cell_microdeg": 500000, "bucket_s": 60},
+  {"cell_microdeg": 1000000, "bucket_s": 120}
+]
+```
+
+校验规则：`cell_microdeg` 必须整除 `180000000`；后一级空间宽度是前一级
+的整数倍、时间宽度也是前一级的整数倍；每级至少有一项增大，完全相同的
+相邻级别被拒绝。
+
+坐标从库里按 REAL 读出后以 `Decimal(str(value))` 重建（按浮点的文本而
+非二进制噪声取整），格号与时段号严格按下列契约计算：
+
+```
+lat_cell = floor((纬度 + 90)  * 1_000_000 / cell_microdeg)
+lon_cell = floor((经度 + 180) * 1_000_000 / cell_microdeg)
+bucket   = floor(observed_utc / bucket_s)
+```
+
+- 经度 `+180` 与 `-180` 等同（格号 0 的接缝）；纬度 `+90` 落在最北一格，
+  不会落到网格之外。
+- 时间对负整数秒同样向负无穷取整（`-30/60 -> -1`、`-60/60 -> -1`、
+  `-61/60 -> -2`）。
+- 每个 run 先按时间排序，映射成 `(时段号, 纬度格号, 经度格号)` 序列，再
+  **折叠相邻且三项全同**的元素；被其他元素隔开后再次出现的相同元素保留。
+  不对格号集合排序，不丢弃路径顺序、长度与重复经过。
+
+## 逐级提升与整组舍弃
+
+从最细级别开始，**每一级都从原始采样重新生成**每个 run 的完整序列
+（上一级已折叠的序列永远不会被当作输入复用）。序列文本完全相同的 run
+归为同组；组支持数 = 成员中不同 `vehicle_unit` 的数量。
+
+1. 若该级**所有**组支持数都 `>= k`，选中该级并停止；
+2. 只要还有一个稀有组，本次**全部成员一起**提升到下一级重新分组——各组
+   不能私自选级；
+3. 到最后一级仍有稀有组时，只把这些**整组**（组内全部行程一起）舍弃，
+   其余组照常交付。
+
+每一级都在内部账本记录组数、稀有组数、保留/舍弃的行程数与不同车辆数；
+这些是内部核对资料，`anon_jobs` 的汇总不会假装每个输入都被发布。
+
+## 终端入口
+
+```
+# 加工（成员清单 + k + 级别文件）；成功 0，请求/清单/级别非法 2
+gtfs-store [--db PATH] [--json] anon-process --manifest M.csv --k 2 \
+               --levels-file levels.json
+gtfs-store [--db PATH] [--json] anon-jobs                         # 内部：作业列表
+gtfs-store [--db PATH] [--json] anon-job      --anon-job-id N     # 内部：分级账本与组状态
+gtfs-store [--db PATH] [--json] anon-export   --anon-job-id N     # 外部：唯一公开读取入口
+gtfs-store [--db PATH] [--json] anon-group    --anon-job-id N --public-group-no G
+gtfs-store [--db PATH] [--json] anon-member   --anon-job-id N --job-id J --run-id R
+```
+
+### 外部入口（固定列，对象全新构造）
+
+`anon-export` 只返回选中级别、`k` 与每个保留组的公开组号、粗化后的完整
+格序列、行程数和不同车辆数。公开载荷逐字段新建，列固定为：
+
+```
+public_group_no, level_index, cell_microdeg, bucket_s,
+trip_count, vehicle_count, sequence
+```
+
+不含 `run_id`、`vehicle_unit`、`job_id`、`sample_id`、精确坐标、原始 UTC
+秒、来源文件/行号或任何内部组号/哈希；公开组号只在本次加工内有意义。
+代码不复用内部行对象再靠调用者删字段，测试与演练实际扫描公开输出确认
+没有夹带内部标识。
+
+### 内部核对入口（不出库给外部）
+
+- `anon-group` 展开某公开组的全部成员（清单行号、来源 job/run、车辆标识
+  与状态），并回查每个成员在 `dwell_samples` 里的原始来源行；
+- `anon-member` 解释某个成员为何被保留（在第几级、哪个公开组、组内不同
+  车辆数与 k 的关系）或为何随整组被舍弃（点名稀有组与支持数）；
+- `anon-job` 给出每一级的组数、稀有组数与保留/舍弃计数，可核对公开数与
+  舍弃数之和等于输入实例数。
+
+## 原子性、独立编号与崩溃重开
+
+校验与磁盘分级全部完成后才开启主库的 `BEGIN IMMEDIATE` 写事务；作业头、
+分级账本、组、组序列、成员审计行与固定列公开行在同一事务提交。环境变量
+`GTFS_FAULT_ANON_AFTER_GROUPS=N` 可在写出 N 个组后触发**真实进程退出**
+（`os._exit`，无清理、无异常处理）：WAL 恢复在新进程回滚整个事务，读者
+看不到半个分组，也看不到缺成员审计行的组；重开后重做得到全新的独立
+`anon_job_id`，不要求幂等复用，也不恢复上次游标。
+
+## 内存边界与有界批处理（生产路径）
+
+Python 端任何时刻都不会同时持有全部采样、全部完整序列或任何组的车辆
+集合：
+
+- 排序、分组、`COUNT(DISTINCT vehicle_unit)` 全部下推到一个**磁盘上的
+  SQLite 临时库**（系统临时目录，绝不放在数据库交付目录旁）；临时库
+  `page_size=1024`、页缓存上限约 2 MiB、`temp_store=FILE`，聚合与排序
+  超预算即落盘；
+- Python 只保留**当前一个 run** 的序列构造工作区（逐点流式读取、相邻
+  折叠后即追加文本），以及写出阶段**当前一个输出组**所需的行；插入按
+  500 行/批 flush，不积累整批数据；
+- 实测（见 `docs/ANON_WALKTHROUGH.md`）：20 万采样与加倍后的 40 万采样
+  相比，子进程峰值 RSS 仅变化约 2 MiB（26 -> 28 MiB），增长全部落在磁盘
+  临时库（约 22.7 -> 44.0 MiB），即内存不随输入总量增长。
+
+## 手工场景与独立复核
+
+`dist/anon/`（由 `tools/build_anon_fixtures.py` 生成，17 个 run 分布在两个
+GPS 作业）与 `anon-expected.json` 覆盖八个可看懂分组过程的场景：同车多趟
+不够 k；每格人数够而整条路径不够；路径逆序、非相邻重复与序列前缀不能混
+组；细格不够而粗格合并成功；一个稀有组促使所有成员换级；最后仍稀有的整
+组舍弃；负时间与格边界（含 +90 最北格、±180 接缝）；跨两个作业的成员。
+演练里的独立小实现自带一套 Decimal 取整、相邻折叠与分组逻辑（不 import
+生产模块），逐字段核对真实 CLI 的分级账本、公开行与舍弃解释。
+
+## 威胁范围（明确不保证什么）
+
+不建设账号系统；威胁模型仅针对拿到公开输出的合作方。本通道**只保证本次
+加工内**每个发布的整段序列至少有 `k` 个不同车辆主体支持。它**不是差分
+隐私**、不添加噪声，也不抵抗多次/交叉交付之间的关联分析；这些限制在
+模块文档与演练输出中均有明示。

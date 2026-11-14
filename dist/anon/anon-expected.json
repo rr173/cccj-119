@@ -1,0 +1,802 @@
+{
+  "k": 2,
+  "levels": [
+    {
+      "level_index": 0,
+      "cell_microdeg": 500000,
+      "bucket_s": 60,
+      "groups": [
+        {
+          "sequence": [
+            [
+              -2,
+              2,
+              2
+            ],
+            [
+              -1,
+              1,
+              1
+            ],
+            [
+              -1,
+              0,
+              0
+            ]
+          ],
+          "runs": [
+            "S7-N1",
+            "S7-N2"
+          ],
+          "vehicles": [
+            "VN1",
+            "VN2"
+          ],
+          "vehicle_count": 2,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              100,
+              114,
+              660
+            ],
+            [
+              101,
+              112,
+              661
+            ],
+            [
+              102,
+              111,
+              662
+            ]
+          ],
+          "runs": [
+            "S6-UNIQ"
+          ],
+          "vehicles": [
+            "VUNIQ"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              100,
+              288,
+              390
+            ],
+            [
+              101,
+              288,
+              390
+            ],
+            [
+              102,
+              289,
+              391
+            ]
+          ],
+          "runs": [
+            "S6-U1",
+            "S6-U2"
+          ],
+          "vehicles": [
+            "VU1",
+            "VU2"
+          ],
+          "vehicle_count": 2,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              226,
+              284,
+              386
+            ],
+            [
+              227,
+              284,
+              386
+            ],
+            [
+              228,
+              285,
+              387
+            ]
+          ],
+          "runs": [
+            "S1-A-2"
+          ],
+          "vehicles": [
+            "VA"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              60,
+              284,
+              386
+            ],
+            [
+              61,
+              284,
+              386
+            ],
+            [
+              62,
+              284,
+              386
+            ],
+            [
+              63,
+              284,
+              386
+            ]
+          ],
+          "runs": [
+            "S3-Z2"
+          ],
+          "vehicles": [
+            "VZ2"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              60,
+              284,
+              386
+            ],
+            [
+              61,
+              284,
+              386
+            ],
+            [
+              62,
+              284,
+              386
+            ]
+          ],
+          "runs": [
+            "S3-Z1"
+          ],
+          "vehicles": [
+            "VZ1"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              60,
+              284,
+              386
+            ],
+            [
+              61,
+              284,
+              386
+            ],
+            [
+              62,
+              285,
+              387
+            ]
+          ],
+          "runs": [
+            "S1-A-1",
+            "S2-X"
+          ],
+          "vehicles": [
+            "VA",
+            "VX"
+          ],
+          "vehicle_count": 2,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              60,
+              284,
+              386
+            ],
+            [
+              61,
+              284,
+              386
+            ]
+          ],
+          "runs": [
+            "S3-Z3"
+          ],
+          "vehicles": [
+            "VZ3"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              60,
+              285,
+              387
+            ],
+            [
+              61,
+              285,
+              387
+            ],
+            [
+              62,
+              284,
+              386
+            ]
+          ],
+          "runs": [
+            "S2-Y"
+          ],
+          "vehicles": [
+            "VY"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              66,
+              284,
+              386
+            ],
+            [
+              67,
+              284,
+              386
+            ],
+            [
+              68,
+              285,
+              387
+            ]
+          ],
+          "runs": [
+            "S4-Q1"
+          ],
+          "vehicles": [
+            "VQ1"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              66,
+              284,
+              386
+            ],
+            [
+              67,
+              285,
+              386
+            ],
+            [
+              68,
+              285,
+              387
+            ]
+          ],
+          "runs": [
+            "S4-Q2"
+          ],
+          "vehicles": [
+            "VQ2"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              83,
+              286,
+              388
+            ],
+            [
+              84,
+              286,
+              388
+            ],
+            [
+              85,
+              287,
+              389
+            ]
+          ],
+          "runs": [
+            "S5-P1",
+            "S5-P2"
+          ],
+          "vehicles": [
+            "VP1",
+            "VP2"
+          ],
+          "vehicle_count": 2,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              83,
+              300,
+              400
+            ],
+            [
+              84,
+              301,
+              401
+            ],
+            [
+              85,
+              302,
+              402
+            ]
+          ],
+          "runs": [
+            "S5-RARE"
+          ],
+          "vehicles": [
+            "VR"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        }
+      ]
+    },
+    {
+      "level_index": 1,
+      "cell_microdeg": 1000000,
+      "bucket_s": 120,
+      "groups": [
+        {
+          "sequence": [
+            [
+              -1,
+              1,
+              1
+            ],
+            [
+              -1,
+              0,
+              0
+            ]
+          ],
+          "runs": [
+            "S7-N1",
+            "S7-N2"
+          ],
+          "vehicles": [
+            "VN1",
+            "VN2"
+          ],
+          "vehicle_count": 2,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              113,
+              142,
+              193
+            ],
+            [
+              114,
+              142,
+              193
+            ]
+          ],
+          "runs": [
+            "S1-A-2"
+          ],
+          "vehicles": [
+            "VA"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              30,
+              142,
+              193
+            ],
+            [
+              31,
+              142,
+              193
+            ]
+          ],
+          "runs": [
+            "S1-A-1",
+            "S2-X",
+            "S2-Y",
+            "S3-Z1",
+            "S3-Z2"
+          ],
+          "vehicles": [
+            "VA",
+            "VX",
+            "VY",
+            "VZ1",
+            "VZ2"
+          ],
+          "vehicle_count": 5,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              30,
+              142,
+              193
+            ]
+          ],
+          "runs": [
+            "S3-Z3"
+          ],
+          "vehicles": [
+            "VZ3"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              33,
+              142,
+              193
+            ],
+            [
+              34,
+              142,
+              193
+            ]
+          ],
+          "runs": [
+            "S4-Q1",
+            "S4-Q2"
+          ],
+          "vehicles": [
+            "VQ1",
+            "VQ2"
+          ],
+          "vehicle_count": 2,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              41,
+              143,
+              194
+            ],
+            [
+              42,
+              143,
+              194
+            ]
+          ],
+          "runs": [
+            "S5-P1",
+            "S5-P2"
+          ],
+          "vehicles": [
+            "VP1",
+            "VP2"
+          ],
+          "vehicle_count": 2,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              41,
+              150,
+              200
+            ],
+            [
+              42,
+              150,
+              200
+            ],
+            [
+              42,
+              151,
+              201
+            ]
+          ],
+          "runs": [
+            "S5-RARE"
+          ],
+          "vehicles": [
+            "VR"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        },
+        {
+          "sequence": [
+            [
+              50,
+              144,
+              195
+            ],
+            [
+              51,
+              144,
+              195
+            ]
+          ],
+          "runs": [
+            "S6-U1",
+            "S6-U2"
+          ],
+          "vehicles": [
+            "VU1",
+            "VU2"
+          ],
+          "vehicle_count": 2,
+          "rare": false
+        },
+        {
+          "sequence": [
+            [
+              50,
+              57,
+              330
+            ],
+            [
+              50,
+              56,
+              330
+            ],
+            [
+              51,
+              55,
+              331
+            ]
+          ],
+          "runs": [
+            "S6-UNIQ"
+          ],
+          "vehicles": [
+            "VUNIQ"
+          ],
+          "vehicle_count": 1,
+          "rare": true
+        }
+      ]
+    }
+  ],
+  "selected_level_index": 1,
+  "public_groups": [
+    {
+      "public_group_no": 1,
+      "sequence": [
+        [
+          -1,
+          1,
+          1
+        ],
+        [
+          -1,
+          0,
+          0
+        ]
+      ],
+      "trip_count": 2,
+      "vehicle_count": 2
+    },
+    {
+      "public_group_no": 2,
+      "sequence": [
+        [
+          30,
+          142,
+          193
+        ],
+        [
+          31,
+          142,
+          193
+        ]
+      ],
+      "trip_count": 5,
+      "vehicle_count": 5
+    },
+    {
+      "public_group_no": 3,
+      "sequence": [
+        [
+          33,
+          142,
+          193
+        ],
+        [
+          34,
+          142,
+          193
+        ]
+      ],
+      "trip_count": 2,
+      "vehicle_count": 2
+    },
+    {
+      "public_group_no": 4,
+      "sequence": [
+        [
+          41,
+          143,
+          194
+        ],
+        [
+          42,
+          143,
+          194
+        ]
+      ],
+      "trip_count": 2,
+      "vehicle_count": 2
+    },
+    {
+      "public_group_no": 5,
+      "sequence": [
+        [
+          50,
+          144,
+          195
+        ],
+        [
+          51,
+          144,
+          195
+        ]
+      ],
+      "trip_count": 2,
+      "vehicle_count": 2
+    }
+  ],
+  "dropped_groups": [
+    {
+      "sequence": [
+        [
+          113,
+          142,
+          193
+        ],
+        [
+          114,
+          142,
+          193
+        ]
+      ],
+      "runs": [
+        "S1-A-2"
+      ],
+      "vehicle_count": 1
+    },
+    {
+      "sequence": [
+        [
+          30,
+          142,
+          193
+        ]
+      ],
+      "runs": [
+        "S3-Z3"
+      ],
+      "vehicle_count": 1
+    },
+    {
+      "sequence": [
+        [
+          41,
+          150,
+          200
+        ],
+        [
+          42,
+          150,
+          200
+        ],
+        [
+          42,
+          151,
+          201
+        ]
+      ],
+      "runs": [
+        "S5-RARE"
+      ],
+      "vehicle_count": 1
+    },
+    {
+      "sequence": [
+        [
+          50,
+          57,
+          330
+        ],
+        [
+          50,
+          56,
+          330
+        ],
+        [
+          51,
+          55,
+          331
+        ]
+      ],
+      "runs": [
+        "S6-UNIQ"
+      ],
+      "vehicle_count": 1
+    }
+  ],
+  "job_of_run": {
+    "S1-A-1": 1,
+    "S1-A-2": 1,
+    "S2-X": 1,
+    "S2-Y": 1,
+    "S3-Z1": 1,
+    "S3-Z2": 1,
+    "S3-Z3": 1,
+    "S4-Q1": 1,
+    "S4-Q2": 2,
+    "S5-P1": 1,
+    "S5-P2": 1,
+    "S5-RARE": 1,
+    "S6-U1": 1,
+    "S6-U2": 2,
+    "S6-UNIQ": 1,
+    "S7-N1": 1,
+    "S7-N2": 1
+  },
+  "unit_of_run": {
+    "S1-A-1": "VA",
+    "S1-A-2": "VA",
+    "S2-X": "VX",
+    "S2-Y": "VY",
+    "S3-Z1": "VZ1",
+    "S3-Z2": "VZ2",
+    "S3-Z3": "VZ3",
+    "S4-Q1": "VQ1",
+    "S4-Q2": "VQ2",
+    "S5-P1": "VP1",
+    "S5-P2": "VP2",
+    "S5-RARE": "VR",
+    "S6-U1": "VU1",
+    "S6-U2": "VU2",
+    "S6-UNIQ": "VUNIQ",
+    "S7-N1": "VN1",
+    "S7-N2": "VN2"
+  }
+}

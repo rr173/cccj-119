@@ -1,0 +1,10 @@
+[
+  {
+    "cell_microdeg": 500000,
+    "bucket_s": 60
+  },
+  {
+    "cell_microdeg": 1000000,
+    "bucket_s": 120
+  }
+]

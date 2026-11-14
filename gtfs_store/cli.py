@@ -489,6 +489,155 @@ def cmd_dwell_evidence(args, store: Store) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Anonymized GPS egress (whole-sequence k-anonymity)
+# ---------------------------------------------------------------------------
+
+def _anon(store: Store):
+    from .anon import AnonStore
+    return AnonStore(store)
+
+
+def _load_levels(args) -> list[dict]:
+    """Levels come from one JSON config: either a bare array or {"levels": [...]}."""
+    from .anon import AnonError
+    try:
+        data = json.loads(Path(args.levels_file).read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise AnonError("levels file not found: %s" % args.levels_file) from exc
+    except json.JSONDecodeError as exc:
+        raise AnonError("levels file is not valid JSON: %s" % exc) from exc
+    if isinstance(data, dict) and "levels" in data:
+        data = data["levels"]
+    if not isinstance(data, list):
+        raise AnonError("levels file must contain a JSON array of "
+                        "{cell_microdeg, bucket_s} objects")
+    return data
+
+
+def cmd_anon_process(args, store: Store) -> int:
+    from .anon import AnonError, AnonStore
+    try:
+        manifest = Path(args.manifest).read_bytes()
+    except FileNotFoundError as exc:
+        raise AnonError("manifest file not found: %s" % args.manifest) from exc
+    result = _anon(store).process(manifest, args.k, _load_levels(args))
+    plain = [
+        "anon_job=%d k=%d selected_level=%d cell_microdeg=%d bucket_s=%s outcome=%s"
+        % (result["anon_job_id"], result["k"], result["selected_level_index"],
+           result["cell_microdeg"], result["bucket_s"], result["final_outcome"]),
+        "members=%d published_groups=%d published_trips=%d dropped_trips=%d "
+        "distinct_vehicles=%d"
+        % (result["member_count"], result["published_groups"],
+           result["published_trips"], result["dropped_trips"],
+           result["distinct_vehicles"]),
+    ]
+    for level in result["levels"]:
+        plain.append(
+            "  level=%d cell=%ds bucket=%ss groups=%d rare=%d retained_trips=%d "
+            "dropped_trips=%d retained_vehicles=%d rare_vehicles=%d -> %s"
+            % (level["level_index"], level["cell_microdeg"], level["bucket_s"],
+               level["total_groups"], level["rare_groups"], level["retained_trips"],
+               level["dropped_trips"], level["retained_vehicles"],
+               level["rare_vehicles"], level["outcome"]))
+    _out(result, args.json, plain)
+    return 0
+
+
+def cmd_anon_jobs(args, store: Store) -> int:
+    rows = _anon(store).jobs()
+    plain = [
+        "anon_job=%d k=%d level=%d groups=%d trips=%d dropped=%d outcome=%s"
+        % (r["anon_job_id"], r["k"], r["selected_level_index"],
+           r["published_groups"], r["published_trips"], r["dropped_trips"],
+           r["final_outcome"]) for r in rows] or ["no anonymization jobs recorded"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_anon_job(args, store: Store) -> int:
+    detail = _anon(store).job(args.anon_job_id)
+    plain = [
+        "anon_job=%d k=%d selected_level=%d outcome=%s members=%d"
+        % (detail["anon_job_id"], detail["k"], detail["selected_level_index"],
+           detail["final_outcome"], detail["member_count"]),
+    ]
+    for level in detail["levels"]:
+        plain.append(
+            "  level=%d cell_microdeg=%d bucket_s=%d groups=%d rare=%d "
+            "retained_trips=%d dropped_trips=%d retained_vehicles=%d "
+            "rare_vehicles=%d -> %s"
+            % (level["level_index"], level["cell_microdeg"], level["bucket_s"],
+               level["total_groups"], level["rare_groups"], level["retained_trips"],
+               level["dropped_trips"], level["retained_vehicles"],
+               level["rare_vehicles"], level["outcome"]))
+    for group in detail["groups"]:
+        plain.append(
+            "  group internal=%s public=%s trips=%d vehicles=%d status=%s%s"
+            % (group["internal_group_no"],
+               group["public_group_no"] if group["public_group_no"] is not None else "-",
+               group["trip_count"], group["vehicle_count"], group["status"],
+               (" " + group["drop_reason"]) if group["drop_reason"] else ""))
+    _out(detail, args.json, plain)
+    return 0
+
+
+def cmd_anon_export(args, store: Store) -> int:
+    # External reader: fixed columns only, freshly built payloads, no internal
+    # row object is reused and no internal identifier leaves the store.
+    payload = _anon(store).public_export(args.anon_job_id)
+    plain = [
+        "anon_job=%d k=%d selected_level=%d columns=%s"
+        % (payload["anon_job_id"], payload["k"],
+           payload["selected_level_index"], ",".join(payload["columns"])),
+    ]
+    for group in payload["groups"]:
+        plain.append("  public_group_no=%d trips=%d vehicles=%d sequence_len=%d"
+                     % (group["public_group_no"], group["trip_count"],
+                        group["vehicle_count"], len(group["sequence"])))
+    _out(payload, args.json, plain)
+    return 0
+
+
+def cmd_anon_group(args, store: Store) -> int:
+    detail = _anon(store).group_detail(args.anon_job_id, args.public_group_no)
+    group = detail["group"]
+    plain = [
+        "anon_job=%d public_group_no=%d internal_group_no=%d trips=%d "
+        "distinct_vehicles=%d status=%s"
+        % (detail["job_id"], detail["public_group_no"], detail["internal_group_no"],
+           group["trip_count"], group["vehicle_count"], group["status"]),
+        "coarse sequence (bucket, lat_cell, lon_cell):",
+    ]
+    for ordinal, triple in enumerate(detail["sequence"], start=1):
+        plain.append("  #%-3d %s" % (ordinal, triple))
+    for member in detail["members"]:
+        plain.append("  member manifest_line=%d job_id=%d run_id=%s "
+                     "vehicle_unit=%s status=%s raw_samples=%d"
+                     % (member["manifest_line"], member["job_id"], member["run_id"],
+                        member["vehicle_unit"], member["status"],
+                        len(member["raw_samples"])))
+    _out(detail, args.json, plain)
+    return 0
+
+
+def cmd_anon_member(args, store: Store) -> int:
+    detail = _anon(store).member_outcome(args.anon_job_id, args.job_id, args.run_id)
+    plain = [
+        "anon_job=%d member job_id=%d run_id=%s vehicle_unit=%s status=%s"
+        % (args.anon_job_id, args.job_id, args.run_id,
+           detail["vehicle_unit"], detail["status"]),
+        "explanation: " + detail["explanation"],
+    ]
+    for level in detail["level_ledger"]:
+        plain.append(
+            "  level=%d groups=%d rare=%d retained_trips=%d dropped_trips=%d -> %s"
+            % (level["level_index"], level["total_groups"], level["rare_groups"],
+               level["retained_trips"], level["dropped_trips"], level["outcome"]))
+    _out(detail, args.json, plain)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Realtime channel (needs gtfs-realtime-bindings; imported lazily)
 # ---------------------------------------------------------------------------
 
@@ -808,6 +957,41 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--job-id", required=True, type=int, dest="job_id")
     p.add_argument("--dwell-seq", required=True, type=int, dest="dwell_seq")
     p.set_defaults(func=cmd_dwell_evidence)
+
+    # Anonymized GPS egress --------------------------------------------
+    p = sub.add_parser("anon-process",
+                       help="coarsen registered GPS runs into k-supported cell sequences")
+    p.add_argument("--manifest", required=True,
+                   help="CSV: job_id,run_id,vehicle_unit (each instance once)")
+    p.add_argument("--k", required=True, type=int, help="minimum distinct vehicles (>= 2)")
+    p.add_argument("--levels-file", required=True, dest="levels_file",
+                   help="JSON array of {cell_microdeg, bucket_s}, fine to coarse")
+    p.set_defaults(func=cmd_anon_process)
+
+    p = sub.add_parser("anon-jobs", help="list anonymization jobs (internal audit)")
+    p.set_defaults(func=cmd_anon_jobs)
+
+    p = sub.add_parser("anon-job", help="show one anonymization job ledger (internal audit)")
+    p.add_argument("--anon-job-id", required=True, type=int, dest="anon_job_id")
+    p.set_defaults(func=cmd_anon_job)
+
+    p = sub.add_parser("anon-export",
+                       help="public export: fixed columns, retained groups only")
+    p.add_argument("--anon-job-id", required=True, type=int, dest="anon_job_id")
+    p.set_defaults(func=cmd_anon_export)
+
+    p = sub.add_parser("anon-group",
+                       help="internal: expand one public group to members and raw rows")
+    p.add_argument("--anon-job-id", required=True, type=int, dest="anon_job_id")
+    p.add_argument("--public-group-no", required=True, type=int, dest="public_group_no")
+    p.set_defaults(func=cmd_anon_group)
+
+    p = sub.add_parser("anon-member",
+                       help="internal: explain why one registered member was kept or dropped")
+    p.add_argument("--anon-job-id", required=True, type=int, dest="anon_job_id")
+    p.add_argument("--job-id", required=True, type=int, dest="job_id")
+    p.add_argument("--run-id", required=True, dest="run_id")
+    p.set_defaults(func=cmd_anon_member)
     return parser
 
 
