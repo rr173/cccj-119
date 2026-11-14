@@ -26,6 +26,9 @@ python3 -I tools/j1939_walkthrough.py           # J1939 重组演练（逐字节
 python3 -I tools/build_rollup_fixtures.py       # 生成带权层级汇总的手工例子与错误用例
 python3 -I tools/rollup_walkthrough.py          # 汇总演练（手写账逐格核对、独立枚举器、错误演示）
 python3 -I tools/rollup_scale.py                # 10 万→20 万笔实测：峰值 RSS、格数、耗时
+python3 -I tools/build_dictmerge_fixtures.py    # 生成三方字典合并的手工例子与手写预期
+python3 -I tools/dictmerge_walkthrough.py       # 三方合并演练：分页审阅、左右/自定义决定、重排与互换稳定性、拒绝演示
+python3 -I tools/dictmerge_scale.py             # 10 万→20 万行底稿实测：峰值 RSS、冲突数、耗时
 ```
 
 ## 终端入口
@@ -843,3 +846,78 @@ python3 -I -m unittest discover -s tests      # 含 tests/test_rollup.py（50 �
 `gtfs_store.rollup` 的任何汇总函数；规模实测里 10 万笔（约 90 万贡献行）
 峰值 RSS ≈ 65 MB，输入翻倍后 ≈ 66 MB、耗时 ×1.94，事实、贡献行与车辆
 集合全程留在 SQLite。
+
+# 关系数据三方合并：底稿 + 两份修订稿 → 工作库 → 定稿字典（DictMerge）
+
+同一份基础字典交给两个团队核对，拿回两份修改稿：有人改显示名称、有人补
+分类、有人删整行。直接覆盖会丢掉另一边的工作，按主键全外连接又分不清
+“只有一边改过”和“两边意见不同”。本工具对三份 **UTF-8 JSONL**（每行一个
+对象）按调用方给定的固定主键做**关系型三方合并**：先比较出自动通过的行
+与真正的冲突，人工逐项决定后，只有所有冲突都被正确处理才写出可入仓的新
+字典。它不是文本 diff 或 Git 包装器，不读班表、实时通告、GPS、CAN 或汇总
+格，也不维护长期修订服务。详见 `docs/DICTMERGE.md`（数据表、类型与缺席
+编码、查找复杂度、批次设置）。
+
+## 两步操作与终端入口（不使用主 --db）
+
+```
+# 1) 比较：三份 JSONL + 主键定义 -> 全新自包含工作库（已存在即拒绝）
+gtfs-store dict-compare --base B.jsonl --left L.jsonl --right R.jsonl \
+                        --key K1 [--key K2 ...] --out work.db \
+                        [--batch-size N] [--cache-kib K]
+# 分页审阅（每页都给完整总数，不只是当前页）
+gtfs-store dict-info       --work work.db
+gtfs-store dict-auto       --work work.db [--limit N] [--offset M]
+gtfs-store dict-conflicts  --work work.db [--limit N] [--offset M]
+gtfs-store dict-conflict   --work work.db --id <conflict_id>   # 三边原值/存在性/来源行号
+gtfs-store dict-key        --work work.db --key V1 [--key V2 ...]
+# 2) 定稿：工作库 + 人工决定 JSONL -> 最终字典（无冲突时空决定文件合法）
+gtfs-store dict-finalize   --work work.db --decisions D.jsonl \
+                           --out final.jsonl [--report report.jsonl]
+```
+
+## 合并语义要点
+
+- 主键分量为非空字符串，原样比较（`"007"` ≠ `"7"`，不裁空格、不去前导
+  零）；复合键分量各存一列、边界有意义，不拼接。缺主键、重复主键、重复
+  JSON 成员、空行、坏 JSON 都是整次输入错误。
+- 字段**缺席**是独立状态，与显式 `null`、`""`、`0`、`false` 都不同；值限
+  字符串/整数/布尔/null，拒绝小数、数组、对象，布尔与整数不混同；整数
+  精确保留有符号 128 位范围。
+- 两边都保留的行按字段独立合并：两边相同取它；一边等于 base 取另一边；
+  其余才是字段冲突——一边改名、另一边补分类可自动合并；一边删字段另一
+  边未动自动合并，但删字段对上显式设 null 必须冲突。
+- 行级规则：两边都删或“一边删、另一边与 base 完全相同”自动删除；一边删
+  而另一边改过则是 **delete_modify** 整行冲突；两边新增同键但内容不同是
+  **add_collision** 整行冲突，不把两个不同新对象凑成一行。整行冲突不再
+  重复生成字段冲突，冲突行里互不冲突的字段仍给自动建议。
+- 冲突身份是对“导致冲突的三个状态”（类别+键+字段+三边带类型状态，无序
+  编码）的 SHA-256，与来源行号无关：文件重排身份不变，左右互换摘要不变；
+  决定文件带同一状态指纹，冲突内容变了旧决定报过期。
+- 决定可表达选哪一边、custom 第三值（`{"value":...}` 或
+  `{"missing":true}` 删列）、整行 `delete` 或完整 custom 行（必须保留相同
+  主键并通过类型检查，不能选不存在的行版本）。未知身份、重复身份、类别
+  不符、坏自定义值、漏决定全部拒绝，绝不默默替用户选边。
+- 最终文件按复合键各分量的 Unicode 码点序排列，每键一行；字段删除与行
+  删除真实体现；定稿说明按主键记录自动接受与冲突决定，不写单元格级长
+  报告。坏决定或写出失败非零退出且原有输出字节不变。
+
+## 手工例子与可复跑演示
+
+`dist/dictmerge/`（由 `tools/build_dictmerge_fixtures.py` 生成）的底稿含
+复合键、`007` 与 `7`、显式 null、缺席列、`0` 与 `false`、超 64 位整数；
+左边改名称、右边补分类，证明两边贡献都保住，并手工列出五个场景的预期：
+同值双改、删除对未改、删除对修改、新增相撞、字段删除对设 null。
+
+```
+python3 -I tools/build_dictmerge_fixtures.py     # 生成 dist/dictmerge/ 输入与手写预期
+python3 -I tools/dictmerge_walkthrough.py        # 分页审阅→左右/自定义决定→逐行逐字段核对
+                                                 # 重排+左右互换身份稳定；五类拒绝且旧输出不变
+python3 -I tools/dictmerge_scale.py              # 10 万→20 万行：RSS、冲突数、耗时
+python3 -I -m unittest discover -s tests         # 含 tests/test_dictmerge.py（45 个用例）
+```
+
+演练与测试中的参考合并器各有一份独立纯字典实现，不 import
+`gtfs_store.dictmerge` 的任何合并函数。规模实测：10 万行底稿比较峰值
+RSS ≈ 52 MB，翻倍到 20 万行后 ≈ 62 MB（×1.19）、耗时 ×2.14 线性；行、
+主键与冲突全程留在 SQLite，Python 只持有当前行/当前键与一个有界批次。

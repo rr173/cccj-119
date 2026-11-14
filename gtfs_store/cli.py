@@ -1088,6 +1088,152 @@ def cmd_j1939_trace(args, store: Store) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Three-way relational dictionary merge (self-contained work library)
+# ---------------------------------------------------------------------------
+
+def _dict_merge():
+    from .dictmerge import (
+        compare as dict_compare,
+        finalize as dict_finalize,
+        info as dict_info,
+        review_auto,
+        review_conflict,
+        review_conflicts,
+        review_key,
+    )
+    return (dict_compare, dict_finalize, dict_info, review_auto,
+            review_conflict, review_conflicts, review_key)
+
+
+def cmd_dict_compare(args) -> int:
+    dict_compare, _, _, _, _, _, _ = _dict_merge()
+    result = dict_compare(args.base, args.left, args.right, args.key,
+                          args.out, batch_size=args.batch_size,
+                          cache_kib=args.cache_kib)
+    c = result["counts"]
+    _out(result, args.json, [
+        "work library: %s" % result["work_library"],
+        "keys=%d auto_rows=%d conflict_rows=%d conflicts=%d (field=%d "
+        "whole-row=%d)"
+        % (c["total_keys"], c["auto_rows"], c["conflict_rows"],
+           c["conflicts_total"], c["field_conflicts"], c["row_conflicts"]),
+        "open conflicts=%d; review with: gtfs-store dict-conflicts --work %s"
+        % (c["open_conflicts"], result["work_library"]),
+    ])
+    return 0
+
+
+def cmd_dict_info(args) -> int:
+    _, _, dict_info, _, _, _, _ = _dict_merge()
+    result = dict_info(args.work)
+    c = result["counts"]
+    _out(result, args.json, [
+        "work=%s status=%s finalized=%s"
+        % (result["work_library"], result["status"], result["finalized"]),
+        "key fields: %s" % ",".join(result["key_fields"]),
+        "inputs: " + " ".join("%s=%s(%d lines, sha256=%s)"
+                              % (side, meta["file"], meta["lines"],
+                                 meta["sha256"][:12])
+                              for side, meta in result["inputs"].items()),
+        "keys=%d auto=%d conflict_rows=%d conflicts=%d open=%d decided=%d"
+        % (c["total_keys"], c["auto_rows"], c["conflict_rows"],
+           c["conflicts_total"], c["open_conflicts"], c["decided_conflicts"]),
+        "batch_size=%d cache_kib=%d"
+        % (result["batch_size"], result["cache_kib"]),
+    ])
+    return 0
+
+
+def cmd_dict_auto(args) -> int:
+    _, _, _, review_auto, _, _, _ = _dict_merge()
+    result = review_auto(args.work, limit=args.limit, offset=args.offset)
+    plain = ["auto rows %d..%d of %d"
+             % (args.offset, args.offset + len(result["rows"]) - 1,
+                result["total"])] if result["rows"] else \
+            ["no auto rows in this page (total=%d)" % result["total"]]
+    for row in result["rows"]:
+        plain.append("  key=%r outcome=%s fields=%s"
+                     % (row["key"], row["outcome"],
+                        ", ".join(sorted(row["fields"])) or "-"))
+    _out(result, args.json, plain)
+    return 0
+
+
+def cmd_dict_conflicts(args) -> int:
+    _, _, _, _, _, review_conflicts, _ = _dict_merge()
+    result = review_conflicts(args.work, limit=args.limit, offset=args.offset)
+    plain = ["conflicts %d..%d of %d (open=%d)"
+             % (args.offset,
+                args.offset + len(result["conflicts"]) - 1,
+                result["total"], result["open"])] \
+        if result["conflicts"] else \
+        ["no conflicts in this page (total=%d)" % result["total"]]
+    for item in result["conflicts"]:
+        plain.append("  [%s] %s key=%r field=%s"
+                     % (item["conflict_id"][:12], item["category"],
+                        item["key"], item["field"] or "-"))
+    _out(result, args.json, plain)
+    return 0
+
+
+def cmd_dict_conflict(args) -> int:
+    _, _, _, _, review_conflict, _, _ = _dict_merge()
+    result = review_conflict(args.work, args.id)
+    plain = ["%s category=%s key=%r field=%s"
+             % (result["conflict_id"], result["category"], result["key"],
+                result["field"] or "-")]
+    for side, state in result["states"].items():
+        if not state["present"]:
+            plain.append("  %-5s absent (row deleted or never present)" % side)
+            continue
+        plain.append("  %-5s line=%d fields:" % (side, state["line_no"]))
+        for name, field_state in sorted(state["fields"].items()):
+            plain.append("        %s=%s" % (name, json.dumps(field_state,
+                                                             ensure_ascii=False)))
+    sug = result["suggestion"]
+    plain.append("  auto suggestion outcome=%s fields=%s"
+                 % (sug["outcome"],
+                    ", ".join("%s<-%s" % (n, d["auto_source"])
+                              for n, d in sorted(sug["fields"].items())) or "-"))
+    _out(result, args.json, plain)
+    return 0
+
+
+def cmd_dict_key(args) -> int:
+    _, _, _, _, _, _, review_key = _dict_merge()
+    result = review_key(args.work, args.key)
+    plain = ["key=%r status=%s outcome=%s conflicts=%d"
+             % (result["key"], result["status"], result["outcome"],
+                len(result["conflicts"]))]
+    for side, state in result["states"].items():
+        if not state["present"]:
+            plain.append("  %-5s absent" % side)
+        else:
+            plain.append("  %-5s line=%d" % (side, state["line_no"]))
+            for name, field_state in sorted(state["fields"].items()):
+                plain.append("        %s=%s" % (name, json.dumps(
+                    field_state, ensure_ascii=False)))
+    _out(result, args.json, plain)
+    return 0
+
+
+def cmd_dict_finalize(args) -> int:
+    _, dict_finalize, _, _, _, _, _ = _dict_merge()
+    result = dict_finalize(args.work, args.decisions, args.out,
+                           report_path=args.report, batch_size=args.batch_size)
+    c = result["counts"]
+    plain = [
+        "finalized work=%s" % result["work_library"],
+        "output=%s rows=%d report_entries=%s"
+        % (args.out, result["output_rows"], result["report_entries"]),
+        "conflicts decided=%d open=%d"
+        % (c["decided_conflicts"], c["open_conflicts"]),
+    ]
+    _out(result, args.json, plain)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gtfs-store",
@@ -1400,6 +1546,66 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--result", required=True, help="rollup result SQLite path")
     p.add_argument("--line", required=True, type=int, help="1-based physical line number")
     p.set_defaults(func=cmd_rollup_fact, uses_store=False)
+
+    # Three-way relational dictionary merge -------------------------------
+    # These commands use their own work database and never touch the main
+    # --db store.  The job is split into dict-compare (operation 1) and
+    # dict-finalize (operation 2); review happens in between.
+    p = sub.add_parser("dict-compare",
+                       help="three-way merge base/left/right JSONL into a work library")
+    p.add_argument("--base", required=True, help="shared base draft JSONL (read-only)")
+    p.add_argument("--left", required=True, help="left revision JSONL (read-only)")
+    p.add_argument("--right", required=True, help="right revision JSONL (read-only)")
+    p.add_argument("--key", required=True, action="append", dest="key",
+                   help="primary-key field name; repeat for a composite key")
+    p.add_argument("--out", required=True,
+                   help="work SQLite path; must not exist (never overwritten)")
+    p.add_argument("--batch-size", type=int, default=4096, dest="batch_size",
+                   help="rows per transaction (default: 4096)")
+    p.add_argument("--cache-kib", type=int, default=16384, dest="cache_kib",
+                   help="SQLite page cache in KiB (default: 16384)")
+    p.set_defaults(func=cmd_dict_compare, uses_store=False)
+
+    p = sub.add_parser("dict-info", help="show work library metadata and counts")
+    p.add_argument("--work", required=True, help="work SQLite path")
+    p.set_defaults(func=cmd_dict_info, uses_store=False)
+
+    p = sub.add_parser("dict-auto", help="page auto-accepted rows in key order")
+    p.add_argument("--work", required=True)
+    p.add_argument("--limit", type=int, default=50)
+    p.add_argument("--offset", type=int, default=0)
+    p.set_defaults(func=cmd_dict_auto, uses_store=False)
+
+    p = sub.add_parser("dict-conflicts",
+                       help="page conflicts in stable identity order")
+    p.add_argument("--work", required=True)
+    p.add_argument("--limit", type=int, default=50)
+    p.add_argument("--offset", type=int, default=0)
+    p.set_defaults(func=cmd_dict_conflicts, uses_store=False)
+
+    p = sub.add_parser("dict-conflict",
+                       help="show one conflict: base/left/right states and suggestion")
+    p.add_argument("--work", required=True)
+    p.add_argument("--id", required=True, help="conflict id")
+    p.set_defaults(func=cmd_dict_conflict, uses_store=False)
+
+    p = sub.add_parser("dict-key",
+                       help="show one key across all three inputs plus its merge state")
+    p.add_argument("--work", required=True)
+    p.add_argument("--key", required=True, action="append", dest="key",
+                   help="key component, in key-definition order (repeat for composite)")
+    p.set_defaults(func=cmd_dict_key, uses_store=False)
+
+    p = sub.add_parser("dict-finalize",
+                       help="apply decisions and write the final JSONL dictionary")
+    p.add_argument("--work", required=True, help="work SQLite path")
+    p.add_argument("--decisions", required=True,
+                   help="JSONL decision file (may be empty when no conflicts)")
+    p.add_argument("--out", required=True,
+                   help="final dictionary JSONL; must not exist")
+    p.add_argument("--report", help="optional finalization report JSONL; must not exist")
+    p.add_argument("--batch-size", type=int, default=4096, dest="batch_size")
+    p.set_defaults(func=cmd_dict_finalize, uses_store=False)
     return parser
 
 

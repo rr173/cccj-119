@@ -1,0 +1,9 @@
+{"org": "A1", "code": "007", "name": "Central", "category": null, "zero": 0, "flag": false, "big": 170141183460469231731687303715884105747}
+{"org": "A1", "code": "7", "name": "Literal seven", "category": "C0"}
+{"org": "A2", "code": "S1", "name": "old label", "owner": "ops"}
+{"org": "A2", "code": "S2", "name": "retire me", "owner": "ops"}
+{"org": "A2", "code": "S3", "name": "disputed", "v": "x"}
+{"org": "A3", "code": "F2", "name": "Rename me"}
+{"org": "A3", "code": "F1", "name": "Drop vs null", "v": 1}
+{"org": "A4", "code": "U1", "name": "Unchanged"}
+{"org": "A5", "code": "D1", "name": "field delete", "gone": "z"}

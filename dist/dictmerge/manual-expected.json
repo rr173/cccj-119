@@ -1,0 +1,151 @@
+{
+  "key_fields": [
+    "org",
+    "code"
+  ],
+  "big_integer": 170141183460469231731687303715884105747,
+  "scenarios": [
+    {
+      "id": "same-value-double-edit",
+      "key": [
+        "A2",
+        "S1"
+      ],
+      "expect": "auto keep; name='agreed label' taken once (source both)"
+    },
+    {
+      "id": "delete-vs-unchanged",
+      "key": [
+        "A2",
+        "S2"
+      ],
+      "expect": "auto delete; the row must not appear in the final file"
+    },
+    {
+      "id": "delete-vs-modify",
+      "key": [
+        "A2",
+        "S3"
+      ],
+      "expect": "whole-row conflict delete_modify; no per-field conflicts"
+    },
+    {
+      "id": "add-collision",
+      "key": [
+        "A9",
+        "N1"
+      ],
+      "expect": "whole-row conflict add_collision; two different new objects stay separate until a decision"
+    },
+    {
+      "id": "field-delete-vs-null",
+      "key": [
+        "A3",
+        "F1"
+      ],
+      "expect": "field_conflict on v; absence (left) vs explicit null (right) cannot be auto-merged"
+    }
+  ],
+  "showcase": {
+    "key": [
+      "A3",
+      "F2"
+    ],
+    "expect": "auto keep with both contributions: name from left 'Rename me (L)' and category from right 'RAIL'"
+  },
+  "state_integrity": {
+    "key": [
+      "A1",
+      "007"
+    ],
+    "expect": "007 stays the string '007' (never 7); category changes null->'URBAN'; note is explicit null; zero is int 0; flag is bool false; big round-trips exactly"
+  },
+  "distinct_key": [
+    "A1",
+    "7"
+  ],
+  "auto_absent_field": {
+    "key": [
+      "A5",
+      "D1"
+    ],
+    "expect": "field 'gone' absent from final row"
+  },
+  "decision_plan": [
+    {
+      "scenario": "delete-vs-modify",
+      "choice": "right",
+      "meaning": "keep the modified right-hand row"
+    },
+    {
+      "scenario": "add-collision",
+      "choice": "custom",
+      "meaning": "third-opinion custom row keeping the same key"
+    },
+    {
+      "scenario": "field-delete-vs-null",
+      "choice": "custom",
+      "custom": "value",
+      "meaning": "analyst types a third value instead of picking sides"
+    }
+  ],
+  "expected_final_rows_after_decisions": [
+    {
+      "org": "A1",
+      "code": "007",
+      "name": "Central (renamed L)",
+      "category": "URBAN",
+      "zero": 0,
+      "flag": false,
+      "big": 170141183460469231731687303715884105747,
+      "note": null
+    },
+    {
+      "org": "A1",
+      "code": "7",
+      "name": "Literal seven",
+      "category": "C0"
+    },
+    {
+      "org": "A2",
+      "code": "S1",
+      "name": "agreed label",
+      "owner": "ops"
+    },
+    {
+      "org": "A2",
+      "code": "S3",
+      "name": "disputed",
+      "v": "y"
+    },
+    {
+      "org": "A3",
+      "code": "F1",
+      "name": "Drop vs null",
+      "v": "third opinion"
+    },
+    {
+      "org": "A3",
+      "code": "F2",
+      "name": "Rename me (L)",
+      "category": "RAIL"
+    },
+    {
+      "org": "A4",
+      "code": "U1",
+      "name": "Unchanged"
+    },
+    {
+      "org": "A5",
+      "code": "D1",
+      "name": "field delete"
+    },
+    {
+      "org": "A9",
+      "code": "N1",
+      "name": "merged third opinion",
+      "v": 3,
+      "reviewed": true
+    }
+  ]
+}
