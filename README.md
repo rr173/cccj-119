@@ -187,3 +187,106 @@ instant(offset_seconds) = day_start_utc + offset_seconds
 
 见 `docs/WALKTHROUGH.md`：其中记录了实际 SQL 查询结果、中断与重做后的行数、
 拒收原因和隔离核对。
+
+# GTFS Realtime 接收通道（TripUpdate → SQLite）
+
+在静态班表之上新增实时接收通道：把**已经下载好的** TripUpdate 二进制报文
+（`FeedMessage`）整理成"当前通告 + 站点明细"。本通道只搬运、核对源观测：
+
+- **不做**延误传播、**不做**预计到站计算、**不访问**网络；
+- 解析用官方 `gtfs-realtime-bindings`（Protocol Buffers）。静态功能仍只需标准库；
+  绑定未安装时自动使用 `vendor/` 里的未改动副本（见 `vendor/README.md`）。
+
+```
+python3 -I tools/build_rt_fixtures.py     # 用官方绑定生成 dist/rt/*.pb 样本
+python3 -I tools/rt_walkthrough.py        # 实时演练（逐步断言，输出即文档）
+python3 -I -m unittest discover -s tests -v
+```
+
+## 终端入口（实时子命令）
+
+```
+gtfs-store [--db PATH] [--json] rt-register  --source S --feed-key F --edition E
+gtfs-store [--db PATH] [--json] rt-sources
+gtfs-store [--db PATH] [--json] rt-feed      --source S --message X.pb
+gtfs-store [--db PATH] [--json] rt-notices   --source S --now N --max-age N [--include-expired] [--entity ID]
+gtfs-store [--db PATH] [--json] rt-receptions --source S [--limit N]
+gtfs-store [--db PATH] [--json] rt-reception --id N [--blob OUT.pb]
+```
+
+`rt-feed` 退出码：应用 / 重复 / 迟到为 `0`；拒收 / 冲突为 `1`；用法错误为 `2`。
+
+## 来源登记
+
+`rt_sources` 把一条实时通道**永久**绑定到一份可用（ready）的静态
+`(feed_key, edition)`：登记后不能换绑（同绑定重复登记是幂等空操作）；不同来源
+绑定同一份班表、使用相同实体编号都互不影响。
+
+## 报文契约与集合语义
+
+- 头部：版本必须是 `2.0`；`incrementality` 必须显式填写；`timestamp` 必须为正数。
+- 正文：只允许 `trip_update` 实体；实体编号非空且报文内不重号；`vehicle`/`alert`
+  等其他类型、混合实体、损坏编码、未初始化的必需字段都留下拒收说明。
+- `FULL_DATASET` 整体替换当前集合：遗漏的实体即撤回，空完整包 = 全部撤回。
+- `DIFFERENTIAL` 只替换列出的实体；`is_deleted=true` 撤回对应编号（不得同时携带
+  车次载荷，也不得出现在完整包里）。开局之前收到增量（尚无基线）须拒绝；
+  空增量是心跳，只推进来源头部。
+- 一次集合变更连同头部与接收结论在**一个事务**里落定：相互竞争的接收者被
+  `BEGIN IMMEDIATE` 串行化，不会把两份报文揉成一个从未存在过的集合。
+
+## 头部时戳与摘要账
+
+头部时戳是来源的先后坐标。`rt_head_ledger`（成功账）记录每个**已应用**的
+`(source, timestamp)` 的报文摘要：
+
+1. 先查账：同样的包再来 → `duplicate`，返回原接收结论，不应用第二遍；
+   同时戳不同字节 → `conflict`；
+2. 再判断新旧：不新于来源头部 → `late`，只留迟到记录；
+3. 校验失败的新报文**不进**成功账，修正后可用同一时戳再来；
+4. 即使实体早已撤回，旧账仍在。
+
+每一次到达（含拒收/冲突/迟到/重复）都在 `rt_receptions` 留账：原报文 BLOB、
+SHA-256、头部时戳、处理类别、诊断；当前实体经 `reception_id` 反查原报文。
+
+## 运行实例与结构化列
+
+- 运行实例 = （运行日期 `start_date`、车次 `trip_id`、可选起始时钟 `start_time`），
+  车次必须属于登记的班表；同一实例在当前集合里只能由一个实体代表——同份增量
+  撤旧编号、用新编号接管实例可行，实体排列顺序不影响结果。
+- `TripDescriptor.schedule_relationship` 只支持 `SCHEDULED` / `CANCELED`：
+  取消是仍然有效的停开通告（可读、不带站点事件），撤回则是来源不再提供信息，
+  二者读取结果不同。
+- 每个 `StopTimeUpdate` 必须有站序且能在该车次找到；附带 `stop_id` 必须与静态
+  对应；重复站序、无对应站序、对错车次、不支持的关系枚举都不得进入当前集合。
+  站点关系限 `SCHEDULED` / `SKIPPED` / `NO_DATA`，后两种不携带到发事件。
+- `arrival` / `departure` 的 `time`、`delay`、`uncertainty` 按 protobuf 字段存在性
+  分别保存"有没有给"和整数值：`delay=0` ≠ 没有 delay，`time=0` ≠ 没有 time；
+  `uncertainty` 不能为负。缺席字段一律存 NULL，不计算、不复制、不补齐；
+  用新载荷替换实体时，本次缺席的可选字段同时清除。
+- 未列出的子字段（`TripUpdate.vehicle`、`TripUpdate.delay` 等）不搬运、不落库。
+
+## 新鲜度
+
+默认读取只显示新鲜通告：`now` 与 `max_age`（必须为正）由调用方传入，实体年龄
+按**最后一次真正被替换的报文头部时戳**计算，到期边界是
+`now >= 实体时戳 + max_age`。更新其他实体或空增量都不刷新这条年龄。
+`--include-expired` 另给含过期通告的读法（数据仍留库），但 `now` 落后于来源头部
+会被拒绝——该功能不提供历史视图。完整包遗漏与显式撤回不等年龄到期。
+
+## 表结构（新增）
+
+- `rt_sources`（绑定、头部时戳、基线标记）
+- `rt_receptions`（每次到达：BLOB、摘要、类别、诊断、原接收引用）
+- `rt_head_ledger`（成功账：已应用的 `(source, timestamp)` → 摘要）
+- `rt_entities`（当前通告：实例列、关系、实体自身时戳、计龄时戳、reception_id，
+  实例唯一索引）
+- `rt_stop_events`（站点明细：站序、站号、关系、到发事件的存在位与三个整数值）
+
+## 实时演练与样本
+
+`dist/rt/*.pb` 由 `tools/build_rt_fixtures.py` 用官方绑定真实生成（含 25 个
+拒收样本）；`docs/RT_WALKTHROUGH.md` 记录 `tools/rt_walkthrough.py` 的实际输出：
+A/B 开局后仅替换 A、停开后撤回、完整包清空、撤旧换号指向同一实例、缺席字段清掉
+旧值与显式零读回、坏站序被拒后修正、旧包在实体消失后再次到达、同戳改包、恰好
+到期但来源仍有心跳、两个来源同号互不影响、两名接收者争用同一来源（两种串行结局）
+以及重开进程后的状态核对。

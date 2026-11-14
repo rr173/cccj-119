@@ -1,10 +1,15 @@
-"""Terminal entry points for loading, inspection, expansion and stop reads."""
+"""Terminal entry points for loading, inspection, expansion and stop reads.
+
+Realtime subcommands (rt-*) are only wired up when the optional
+gtfs-realtime-bindings are importable; the static commands never need them.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 from . import __version__
@@ -161,6 +166,153 @@ def cmd_list(args, store: Store) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Realtime channel (needs gtfs-realtime-bindings; imported lazily)
+# ---------------------------------------------------------------------------
+
+def _rt(store: Store):
+    from .realtime import RealtimeStore
+    return RealtimeStore(store)
+
+
+def cmd_rt_register(args, store: Store) -> int:
+    result = _rt(store).register_source(args.source, args.feed_key, args.edition)
+    if result["already_registered"]:
+        _out(result, args.json, [
+            "source=%s already registered with binding %s/%s; unchanged"
+            % (result["source_key"], result["feed_key"], result["edition"])])
+    else:
+        _out(result, args.json, [
+            "registered source=%s bound to %s/%s (binding is permanent)"
+            % (result["source_key"], result["feed_key"], result["edition"])])
+    return 0
+
+
+def cmd_rt_sources(args, store: Store) -> int:
+    rows = _rt(store).sources()
+    plain = ["%s bound=%s/%s head=%s baseline=%s entities=%d receptions=%d"
+             % (r["source_key"], r["feed_key"], r["edition"],
+                r["head_timestamp"] if r["head_timestamp"] is not None else "-",
+                "yes" if r["baseline_seen"] else "no", r["entities"], r["receptions"])
+             for r in rows] or ["no realtime sources registered"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def _diag_lines(diagnostics: list[dict[str, Any]]) -> list[str]:
+    lines = []
+    for d in diagnostics:
+        where = d.get("entity_id") or "-"
+        field = d.get("field") or "-"
+        lines.append("  %s | entity=%s | field=%s | %s"
+                     % (d["category"], where, field, d["message"]))
+    return lines
+
+
+def cmd_rt_feed(args, store: Store) -> int:
+    blob = Path(args.message).read_bytes()
+    result = _rt(store).feed(args.source, blob)
+    category = result["category"]
+    if category == "applied":
+        plain = ["applied source=%s reception=%d %s ts=%d upserts=%d withdrawals=%d "
+                 "stop_events=%d"
+                 % (result["source_key"], result["reception_id"], result["incrementality"],
+                    result["header_timestamp"], result["entities_upserted"],
+                    result["entities_withdrawn"], result["stop_events"])]
+        code = 0
+    elif category == "duplicate":
+        plain = ["duplicate source=%s reception=%d: identical to reception #%d "
+                 "(%s); stored conclusion stands, nothing applied again"
+                 % (result["source_key"], result["reception_id"],
+                    result["original_reception_id"], result["original_category"])]
+        code = 0
+    elif category == "late":
+        plain = ["late source=%s reception=%d ts=%s: behind the source head; "
+                 "recorded only" % (result["source_key"], result["reception_id"],
+                                    result["header_timestamp"])]
+        code = 0
+    else:  # rejected / conflict
+        heading = ("CONFLICT" if category == "conflict" else "REJECTED")
+        plain = ["%s source=%s reception=%d (%d problem(s)); current set unchanged"
+                 % (heading, result["source_key"], result["reception_id"],
+                    len(result["diagnostics"]))]
+        plain += _diag_lines(result["diagnostics"])
+        code = 1
+    _out(result, args.json, plain)
+    return code
+
+
+def _event_text(event: dict[str, Any] | None) -> str:
+    if event is None:
+        return "-"
+    def val(key: str) -> str:
+        return "-" if event[key] is None else str(event[key])
+    return "time=%s delay=%s unc=%s" % (val("time"), val("delay"), val("uncertainty"))
+
+
+def cmd_rt_notices(args, store: Store) -> int:
+    result = _rt(store).notices(args.source, args.now, args.max_age,
+                                include_expired=args.include_expired)
+    notices = result["notices"]
+    if args.entity is not None:
+        notices = [n for n in notices if n["entity_id"] == args.entity]
+        result = dict(result, notices=notices)
+    plain = ["source=%s now=%d max_age=%d include_expired=%s head=%s: %d notice(s)"
+             % (result["source_key"], result["now"], result["max_age"],
+                "yes" if result["include_expired"] else "no",
+                result["head_timestamp"] if result["head_timestamp"] is not None else "-",
+                len(notices))]
+    for n in notices:
+        plain.append(
+            "%s trip=%s date=%s start=%s rel=%s entity_ts=%s replaced@%d reception=#%d "
+            "fresh=%s expires@%d"
+            % (n["entity_id"], n["trip_id"], n["service_date"],
+               n["start_time"] or "-", n["trip_schedule_relationship"],
+               n["entity_timestamp"] if n["entity_timestamp"] is not None else "-",
+               n["replaced_at_header_timestamp"], n["reception_id"],
+               "yes" if n["fresh"] else "NO(expired)", n["expires_at"]))
+        for s in n["stop_events"]:
+            plain.append("  seq %-4d stop=%s static=%s %-9s arr[%s] dep[%s]"
+                         % (s["stop_sequence"], s["stop_id"] or "-",
+                            s["static_stop_id"] or "-", s["schedule_relationship"],
+                            _event_text(s["arrival"]), _event_text(s["departure"])))
+    _out(result, args.json, plain)
+    return 0
+
+
+def cmd_rt_receptions(args, store: Store) -> int:
+    rows = _rt(store).receptions(args.source, args.limit)
+    plain = ["source=%s: %d reception(s)" % (args.source, len(rows))]
+    for r in rows:
+        plain.append("#%d %s %-9s %-13s ts=%s sha=%s… size=%d"
+                     % (r["id"], r["received_at"], r["category"],
+                        r["header_incrementality"] or "-",
+                        r["header_timestamp"] if r["header_timestamp"] is not None else "-",
+                        r["sha256"][:12], r["size_bytes"]))
+        plain += _diag_lines(r["diagnostics"])
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_rt_reception(args, store: Store) -> int:
+    rt = _rt(store)
+    detail = rt.reception_detail(args.id, include_blob=args.blob is not None)
+    if args.blob is not None:
+        Path(args.blob).write_bytes(detail.pop("blob"))
+    plain = ["reception #%d source=%s category=%s applied=%s"
+             % (detail["id"], detail["source_key"], detail["category"], detail["applied"]),
+             "received_at=%s sha256=%s size=%d header_ts=%s incrementality=%s"
+             % (detail["received_at"], detail["sha256"], detail["size_bytes"],
+                detail["header_timestamp"], detail["header_incrementality"])]
+    if detail["original_reception_id"] is not None:
+        plain.append("original_reception=#%d" % detail["original_reception_id"])
+    if args.blob is not None:
+        plain.append("blob written to %s" % args.blob)
+    plain += _diag_lines(detail["diagnostics"])
+    _out(detail, args.json, plain)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gtfs-store",
@@ -220,6 +372,43 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("list", help="list stored feeds and editions")
     p.set_defaults(func=cmd_list)
+
+    p = sub.add_parser("rt-register",
+                       help="bind a realtime source to one ready edition (permanent)")
+    p.add_argument("--source", required=True)
+    p.add_argument("--feed-key", required=True)
+    p.add_argument("--edition", required=True)
+    p.set_defaults(func=cmd_rt_register)
+
+    p = sub.add_parser("rt-sources", help="list realtime sources and their heads")
+    p.set_defaults(func=cmd_rt_sources)
+
+    p = sub.add_parser("rt-feed", help="feed one downloaded FeedMessage (.pb) to a source")
+    p.add_argument("--source", required=True)
+    p.add_argument("--message", required=True, help="path to the .pb file")
+    p.set_defaults(func=cmd_rt_feed)
+
+    p = sub.add_parser("rt-notices", help="read current notices of a source")
+    p.add_argument("--source", required=True)
+    p.add_argument("--now", required=True, type=int,
+                   help="caller clock, epoch seconds")
+    p.add_argument("--max-age", required=True, type=int,
+                   help="positive freshness horizon in seconds")
+    p.add_argument("--include-expired", action="store_true",
+                   help="also show expired notices (now must not be behind the head)")
+    p.add_argument("--entity", help="restrict to one entity id")
+    p.set_defaults(func=cmd_rt_notices)
+
+    p = sub.add_parser("rt-receptions", help="show the reception ledger of a source")
+    p.add_argument("--source", required=True)
+    p.add_argument("--limit", type=int, default=None,
+                   help="show only the most recent N receptions")
+    p.set_defaults(func=cmd_rt_receptions)
+
+    p = sub.add_parser("rt-reception", help="show one reception; optionally dump its blob")
+    p.add_argument("--id", required=True, type=int)
+    p.add_argument("--blob", help="write the original message bytes to this path")
+    p.set_defaults(func=cmd_rt_reception)
     return parser
 
 

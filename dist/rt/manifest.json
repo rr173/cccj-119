@@ -1,0 +1,260 @@
+{
+  "bad-canceled-with-stops.pb": {
+    "bytes": 45,
+    "incrementality": "FULL_DATASET",
+    "note": "CANCELED with stop events",
+    "timestamp": 3000
+  },
+  "bad-deleted-in-full.pb": {
+    "bytes": 19,
+    "incrementality": "FULL_DATASET",
+    "note": "is_deleted inside a FULL_DATASET",
+    "timestamp": 3000
+  },
+  "bad-deleted-payload.pb": {
+    "bytes": 41,
+    "incrementality": "DIFFERENTIAL",
+    "note": "is_deleted together with a trip payload",
+    "timestamp": 3000
+  },
+  "bad-dup-id.pb": {
+    "bytes": 78,
+    "incrementality": "FULL_DATASET",
+    "note": "entity id twice in one message",
+    "timestamp": 3000
+  },
+  "bad-dup-seq.pb": {
+    "bytes": 47,
+    "incrementality": "FULL_DATASET",
+    "note": "stop_sequence twice in one entity",
+    "timestamp": 3000
+  },
+  "bad-empty-id.pb": {
+    "bytes": 38,
+    "incrementality": "FULL_DATASET",
+    "note": "empty entity id",
+    "timestamp": 3000
+  },
+  "bad-empty-payload.pb": {
+    "bytes": 17,
+    "incrementality": "FULL_DATASET",
+    "note": "entity carries nothing",
+    "timestamp": 3000
+  },
+  "bad-instance-conflict.pb": {
+    "bytes": 47,
+    "incrementality": "DIFFERENTIAL",
+    "note": "G claims the instance that E still represents",
+    "timestamp": 3000
+  },
+  "bad-mixed.pb": {
+    "bytes": 43,
+    "incrementality": "FULL_DATASET",
+    "note": "trip_update and alert mixed",
+    "timestamp": 3000
+  },
+  "bad-neg-uncertainty.pb": {
+    "bytes": 56,
+    "incrementality": "FULL_DATASET",
+    "note": "negative uncertainty",
+    "timestamp": 3000
+  },
+  "bad-no-header.pb": {
+    "bytes": 35,
+    "incrementality": null,
+    "note": "no header at all",
+    "timestamp": null
+  },
+  "bad-no-id.pb": {
+    "bytes": 36,
+    "incrementality": "FULL_DATASET",
+    "note": "entity id missing",
+    "timestamp": 3000
+  },
+  "bad-no-incrementality.pb": {
+    "bytes": 45,
+    "incrementality": null,
+    "note": "incrementality not set",
+    "timestamp": 3000
+  },
+  "bad-no-start-date.pb": {
+    "bytes": 29,
+    "incrementality": "FULL_DATASET",
+    "note": "start_date missing",
+    "timestamp": 3000
+  },
+  "bad-no-timestamp.pb": {
+    "bytes": 44,
+    "incrementality": "FULL_DATASET",
+    "note": "timestamp missing",
+    "timestamp": null
+  },
+  "bad-no-version.pb": {
+    "bytes": 42,
+    "incrementality": "FULL_DATASET",
+    "note": "version field missing",
+    "timestamp": 3000
+  },
+  "bad-skipped-with-event.pb": {
+    "bytes": 49,
+    "incrementality": "FULL_DATASET",
+    "note": "SKIPPED stop carrying arrival",
+    "timestamp": 3000
+  },
+  "bad-stop-id-mismatch.pb": {
+    "bytes": 47,
+    "incrementality": "FULL_DATASET",
+    "note": "stop_id does not match the sequence's static stop",
+    "timestamp": 3000
+  },
+  "bad-stop-rel.pb": {
+    "bytes": 45,
+    "incrementality": "FULL_DATASET",
+    "note": "stop relationship UNSCHEDULED",
+    "timestamp": 3000
+  },
+  "bad-trip-rel.pb": {
+    "bytes": 41,
+    "incrementality": "FULL_DATASET",
+    "note": "trip relationship ADDED unsupported",
+    "timestamp": 3000
+  },
+  "bad-unknown-trip.pb": {
+    "bytes": 43,
+    "incrementality": "FULL_DATASET",
+    "note": "trip not in the bound edition",
+    "timestamp": 3000
+  },
+  "bad-vehicle.pb": {
+    "bytes": 29,
+    "incrementality": "FULL_DATASET",
+    "note": "vehicle entity, not trip_update",
+    "timestamp": 3000
+  },
+  "bad-version.pb": {
+    "bytes": 47,
+    "incrementality": "FULL_DATASET",
+    "note": "version 1.0 is not accepted",
+    "timestamp": 3000
+  },
+  "bad-zero-timestamp.pb": {
+    "bytes": 46,
+    "incrementality": "FULL_DATASET",
+    "note": "timestamp must be positive",
+    "timestamp": 0
+  },
+  "corrupt.pb": {
+    "bytes": 22,
+    "incrementality": null,
+    "note": "garbage bytes",
+    "timestamp": null
+  },
+  "m01-full-a-b.pb": {
+    "bytes": 140,
+    "incrementality": "FULL_DATASET",
+    "note": "baseline: A (T_WKDY, mixed stop forms) and B (T_LATE)",
+    "timestamp": 1000
+  },
+  "m02-diff-a.pb": {
+    "bytes": 58,
+    "incrementality": "DIFFERENTIAL",
+    "note": "replace A only: fewer stops, delay/uncertainty absent this time",
+    "timestamp": 1010
+  },
+  "m03-diff-del-b.pb": {
+    "bytes": 19,
+    "incrementality": "DIFFERENTIAL",
+    "note": "incremental withdrawal of B",
+    "timestamp": 1020
+  },
+  "m04-full-c.pb": {
+    "bytes": 53,
+    "incrementality": "FULL_DATASET",
+    "note": "full dataset without A: A is withdrawn by omission",
+    "timestamp": 1030
+  },
+  "m05-full-empty.pb": {
+    "bytes": 12,
+    "incrementality": "FULL_DATASET",
+    "note": "empty full dataset: withdraw everything",
+    "timestamp": 1040
+  },
+  "m06-full-d-cancel.pb": {
+    "bytes": 46,
+    "incrementality": "FULL_DATASET",
+    "note": "D cancels T_TWO_STOPS: a still-valid stop-service notice",
+    "timestamp": 1050
+  },
+  "m07-diff-del-d.pb": {
+    "bytes": 19,
+    "incrementality": "DIFFERENTIAL",
+    "note": "withdraw the cancellation: the source no longer tells us",
+    "timestamp": 1060
+  },
+  "m08-full-x.pb": {
+    "bytes": 65,
+    "incrementality": "FULL_DATASET",
+    "note": "X holds instance (T_FREQ_EXACT, 20261116, 09:30:00)",
+    "timestamp": 1070
+  },
+  "m09-diff-rename.pb": {
+    "bytes": 73,
+    "incrementality": "DIFFERENTIAL",
+    "note": "same message withdraws X and hands the instance to Y",
+    "timestamp": 1080
+  },
+  "m09b-diff-rename-swapped.pb": {
+    "bytes": 73,
+    "incrementality": "DIFFERENTIAL",
+    "note": "same change with entities swapped; the result must be identical",
+    "timestamp": 1080
+  },
+  "m10-diff-bad-seq.pb": {
+    "bytes": 48,
+    "incrementality": "DIFFERENTIAL",
+    "note": "stop_sequence 999 does not exist in T_WKDY: rejected",
+    "timestamp": 1090
+  },
+  "m11-diff-bad-seq-fixed.pb": {
+    "bytes": 49,
+    "incrementality": "DIFFERENTIAL",
+    "note": "corrected resend at the same timestamp: accepted",
+    "timestamp": 1090
+  },
+  "m12-conflict-full-z.pb": {
+    "bytes": 47,
+    "incrementality": "FULL_DATASET",
+    "note": "timestamp 1080 is already applied from m09: byte conflict",
+    "timestamp": 1080
+  },
+  "m13-late-diff.pb": {
+    "bytes": 47,
+    "incrementality": "DIFFERENTIAL",
+    "note": "new bytes older than the head: late record only",
+    "timestamp": 1075
+  },
+  "m14-heartbeat.pb": {
+    "bytes": 12,
+    "incrementality": "DIFFERENTIAL",
+    "note": "empty differential: heartbeat, moves only the head",
+    "timestamp": 1100
+  },
+  "m15-heartbeat.pb": {
+    "bytes": 12,
+    "incrementality": "DIFFERENTIAL",
+    "note": "second heartbeat",
+    "timestamp": 1110
+  },
+  "race-diff.pb": {
+    "bytes": 49,
+    "incrementality": "DIFFERENTIAL",
+    "note": "race: differential carrying Y (needs the baseline)",
+    "timestamp": 2001
+  },
+  "race-full.pb": {
+    "bytes": 49,
+    "incrementality": "FULL_DATASET",
+    "note": "race: full dataset carrying X",
+    "timestamp": 2000
+  }
+}

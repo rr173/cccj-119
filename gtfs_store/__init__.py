@@ -1,6 +1,8 @@
 """Small, local GTFS static store and service-date expansion engine.
 
-The package intentionally uses only the Python standard library and SQLite.
+The static side uses only the Python standard library and SQLite.  The
+optional realtime channel (gtfs_store.realtime) additionally needs the
+official gtfs-realtime-bindings (vendored under vendor/ as a fallback).
 See README.md for the data contract and command line entry points.
 """
 
