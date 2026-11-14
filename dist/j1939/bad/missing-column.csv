@@ -1,0 +1,2 @@
+bus,timestamp_ns,can_id,data_hex
+can-alpha,1,18EC2010

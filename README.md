@@ -21,6 +21,8 @@ python3 -I tools/build_dwell_fixtures.py        # 重新生成 GPS 驻留静态�
 python3 -I tools/dwell_walkthrough.py           # GPS 驻留演练（逐条证据与崩溃重开）
 python3 -I tools/build_anon_fixtures.py         # 生成匿名出仓手工样本（跨两个 GPS 作业）
 python3 -I tools/anon_walkthrough.py            # 匿名出仓演练（独立复核、崩溃重开、20 万采样测内存）
+python3 -I tools/build_j1939_fixtures.py        # 生成 J1939 TP 手工抓包样本与期望
+python3 -I tools/j1939_walkthrough.py           # J1939 重组演练（逐字节复核、崩溃重开）
 ```
 
 ## 终端入口
@@ -680,3 +682,86 @@ GPS 作业）与 `anon-expected.json` 覆盖八个可看懂分组过程的场景
 加工内**每个发布的整段序列至少有 `k` 个不同车辆主体支持。它**不是差分
 隐私**、不添加噪声，也不抵抗多次/交叉交付之间的关联分析；这些限制在
 模块文档与演练输出中均有明示。
+
+# 离线 J1939-21 传输层整理（CAN TP.CM/TP.DT 重组）
+
+与 GPS、班表、匿名化并列的独立离线入口：把诊断总线抓包 CSV 还原为可信的
+完整应用载荷，落定**批次 → 原帧 → 传输 → 完整消息**四层关系。不接入硬件、
+不解释故障码、不从任何旧加工结果推算诊断消息。完整契约见
+`docs/J1939_WALKTHROUGH.md`，实现见 `gtfs_store/j1939.py`。
+
+## 支持范围（明确收窄的子集）
+
+- 输入为 UTF-8 CSV：`bus,timestamp_ns,can_id,data_hex`。bus 原样非空；
+  时间为非负整数且全文件非递减（同刻按行序）；can_id 恰好 8 位十六进制
+  29 位扩展标识（前导零原文保留）；data_hex 恰好 8 字节。倒退时间、缺列、
+  多列、坏字段使**整份文件不可加工**，不把损坏前缀当成批次。
+- 标识符拆 priority/reserved/data_page/PF/PS/source_address；reserved 必须
+  为 0。PF<240 时 PS 为目的地址且 PGN 低字节为 0；PF>=240 时 PS 属于 PGN、
+  目的地址 255。TP.CM=`0x00EC00`、TP.DT=`0x00EB00`，且只接受 data_page=0；
+  其他 PGN 原样登记为普通帧，不参与重组、不靠名字猜地址。
+- BAM（广播，目的 255、b5=255）与点对点 RTS/CTS/EOM ACK/Abort。公告总长
+  9..1785 字节、包数等于 `ceil(总长/7)`；目标 PGN 为 18 位、PDU1 低字节
+  为 0 且不能是 TP PGN。
+- 通道按 `(bus, 源, 目的)` 区分，同一发送端对两个接收端不串包；DT 不带
+  PGN，不按 PGN 开并行通道。合法新公告替换旧通道（旧传输记 `replaced`
+  不发布）；非法公告只记拒绝、不破坏旧传输。
+- DT 按包号 1..N 收，末包只取总长需要的字节；同号同字节记重复帧（不重拼、
+  不占许可、不刷新时限），同号改内容即失败；无通道、越界、跳包都有明确
+  诊断，缺包不能跳过拼成功。
+- 点对点严格流控：CTS 许可数 1..RTS b5、窗口不越总包数、起始须为下一应收
+  包、仅等待 CTS 时可接受；窗口收完再等下一份许可，窗口外 DT 判失败；
+  暂停许可与重新授权报不支持。齐包后等 EOM ACK，**只有合法 ACK 才发布**；
+  Abort 原因码原样保存，任一端都可终止；未知控制字节报不支持。
+- 时限：每条合法行先让同 bus `deadline<=当前时间`（相等即超时）的活动
+  传输超时；普通帧也推进本 bus 时间，另一 bus 不影响。data/control 两个
+  gap 均为正整数，重复帧不刷新。文件结束未完成记 `eof_incomplete`，不
+  填零、不借会话补全。失败通道可被新公告复用，历史成功消息不被撤回。
+
+## 终端入口（J1939 子命令）
+
+```
+gtfs-store [--db PATH] [--json] j1939-import    --capture X.csv \
+               --data-gap-ns D --control-gap-ns C
+gtfs-store [--db PATH] [--json] j1939-batches
+gtfs-store [--db PATH] [--json] j1939-messages  [--batch N] [--bus B]
+gtfs-store [--db PATH] [--json] j1939-message   --message-id N
+gtfs-store [--db PATH] [--json] j1939-transfers [--batch N] [--status S]
+gtfs-store [--db PATH] [--json] j1939-transfer  --transfer-id N
+gtfs-store [--db PATH] [--json] j1939-events    [--batch N]
+gtfs-store [--db PATH] [--json] j1939-trace     --message-id N --start A --end B
+```
+
+消息可查 bus、双方地址、应用 PGN、BAM/RTS、起止时刻、长度与原始载荷
+BLOB；失败传输可查状态变化、致败控制/包、缺失包或确认；RTS、各 CTS、ACK
+都能按传输取回原始八字节。`j1939-trace` 对左闭右开载荷区间返回相交的 DT
+原文件行、帧内偏移与载荷内范围，跨包区间返回多帧。
+
+## 失败批次仍可查什么 / 退出码
+
+协议失败与成功传输同批落定：失败/超时/中止/替换/EOF 传输不产生消息行，
+但已收包、控制帧、事件账本、失败原因、缺失包/ACK 全部可回查；同批成功
+消息不受影响。`j1939-import` 在本批并非全部成功时以**非零**告知（不只
+打印成功条数）；文件级损坏退出非零且不写任何批次。
+
+## 原子性、独立批次与崩溃重开
+
+整份输入先完整校验，再在单个 `BEGIN IMMEDIATE` 事务内写全部四层结果；
+`GTFS_FAULT_J1939_AFTER_FRAMES=N` 注入真实 `os._exit` 后，未提交 WAL 由
+新进程恢复回滚，读不到缺字节来源的成功消息。每次导入独立批次，不幂等
+复用、不追加上次游标。
+
+## 手工样本与独立复核
+
+`dist/j1939/`（含七类文件级损坏样本 `dist/j1939/bad/`）覆盖 BAM 与两轮
+CTS 点对点、双接收端交错、DT 重传、同号改内容、窗口外数据、错误/缺失
+ACK、公告替换、时限恰好相等、只推进另一 bus、Abort、不支持/孤立控制与
+EOF 未完成。`tools/verify_j1939_output.py` 只用标准库读真实输出库，逐字节
+重建载荷并逐区间核对来源，不 import 生产代码：
+
+```
+python3 -I tools/build_j1939_fixtures.py
+python3 -I tools/j1939_walkthrough.py
+python3 -I tools/verify_j1939_output.py --db <演练库>
+python3 -I -m unittest discover -s tests      # 含 tests/test_j1939.py
+```

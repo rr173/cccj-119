@@ -1,0 +1,184 @@
+{
+  "control_gap_ns": 50,
+  "data_gap_ns": 100,
+  "scenarios": [
+    {
+      "app_pgn": 61444,
+      "bus": "can-alpha",
+      "dst": 255,
+      "first_row": 2,
+      "length": 15,
+      "mode": "BAM",
+      "name": "S1_bam_three_packets",
+      "packet_source_lines": [
+        3,
+        4,
+        5
+      ],
+      "packets": 3,
+      "payload_hex": "a0a1a2a3a4a5a6b0b1b2b3b4b5b6b7",
+      "src": 16,
+      "state": "completed",
+      "trace_cases": [
+        {
+          "end": 7,
+          "lines": [
+            3
+          ],
+          "start": 0
+        },
+        {
+          "end": 9,
+          "lines": [
+            3,
+            4
+          ],
+          "start": 6
+        },
+        {
+          "end": 15,
+          "lines": [
+            4,
+            5
+          ],
+          "start": 7
+        }
+      ]
+    },
+    {
+      "app_pgn": 61444,
+      "bus": "can-alpha",
+      "cts_lines": [
+        null,
+        12
+      ],
+      "dst": 32,
+      "duplicate_line": 10,
+      "first_row": 7,
+      "length": 16,
+      "mode": "RTS",
+      "name": "S2_rts_two_cts_rounds_with_duplicate",
+      "packets": 3,
+      "payload_hex": "000102030405060708090a0b0c0d0e0f",
+      "src": 16,
+      "state": "completed",
+      "window_sizes": [
+        2,
+        1
+      ]
+    },
+    {
+      "channels": [
+        {
+          "dst": 32,
+          "mode": "RTS",
+          "payload_hex": "303132333435363738",
+          "src": 16,
+          "state": "completed"
+        },
+        {
+          "dst": 48,
+          "mode": "RTS",
+          "payload_hex": "303132333435363738",
+          "src": 16,
+          "state": "completed"
+        }
+      ],
+      "first_row": 15,
+      "name": "S3_two_receivers_interleaved"
+    },
+    {
+      "dst": 32,
+      "failure_code": "dt_seq_conflict",
+      "first_row": 27,
+      "mode": "RTS",
+      "name": "S4_same_seq_changed_bytes",
+      "src": 16,
+      "state": "failed"
+    },
+    {
+      "dst": 32,
+      "failure_code": "dt_outside_window",
+      "first_row": 31,
+      "mode": "RTS",
+      "name": "S5_data_outside_window",
+      "src": 16,
+      "state": "failed"
+    },
+    {
+      "bad_ack_event": "ack_bad",
+      "bad_ack_line": 37,
+      "dst": 32,
+      "failure_event": "timed_out",
+      "first_row": 33,
+      "missing_ack": true,
+      "mode": "RTS",
+      "name": "S6_wrong_then_missing_ack",
+      "src": 16,
+      "state": "timed_out"
+    },
+    {
+      "first_row": 39,
+      "name": "S7_replacement_then_success",
+      "replaced_line": 40,
+      "replaced_state": "replaced",
+      "replacement": {
+        "dst": 32,
+        "mode": "RTS",
+        "payload_hex": "303132333435363738",
+        "src": 16,
+        "state": "completed"
+      }
+    },
+    {
+      "first_row": 46,
+      "first_state": "timed_out",
+      "missing_packet": 2,
+      "name": "S8_exact_deadline_equality_then_reuse",
+      "reuse_payload_hex": "80818283848586878889",
+      "reuse_state": "completed"
+    },
+    {
+      "bus": "can-alpha",
+      "dst": 32,
+      "first_row": 52,
+      "mode": "RTS",
+      "name": "S9_other_bus_does_not_advance_time",
+      "payload_hex": "303132333435363738",
+      "src": 16,
+      "state": "completed"
+    },
+    {
+      "abort_line": 64,
+      "abort_reason": 6,
+      "dst": 32,
+      "first_row": 61,
+      "mode": "RTS",
+      "name": "S10_receiver_abort",
+      "src": 16,
+      "state": "aborted"
+    },
+    {
+      "first_row": 65,
+      "name": "S11_unsupported_and_orphan_controls",
+      "orphan_event": "orphan_control",
+      "orphan_line": 75,
+      "pause_event": "cts_unsupported",
+      "reauth_event": "cts_unsupported",
+      "transfer_state": "completed",
+      "unknown_event": "unsupported_control",
+      "unknown_line": 68
+    },
+    {
+      "eof_missing": [
+        2,
+        3
+      ],
+      "eof_state": "eof_incomplete",
+      "first_row": 76,
+      "name": "S12_eof_incomplete_and_reserved_bit",
+      "reserved_event": "identifier_rejected",
+      "reserved_line": 76
+    }
+  ]
+}

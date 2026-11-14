@@ -1,0 +1,4 @@
+bus,timestamp_ns,can_id,data_hex
+can-alpha,1000,18ECFF10,20100003FF04F000
+can-alpha,1010,18EBFF10,0100010203040506
+can-alpha,999,18EBFF10,020708090A0B0C0D

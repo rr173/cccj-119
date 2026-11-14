@@ -784,6 +784,162 @@ def cmd_rt_reception(args, store: Store) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Offline J1939 TP reassembly
+# ---------------------------------------------------------------------------
+
+def _j1939(store: Store):
+    from .j1939 import J1939Store
+    return J1939Store(store)
+
+
+def cmd_j1939_import(args, store: Store) -> int:
+    result = _j1939(store).import_capture(args.capture, args.data_gap_ns,
+                                          args.control_gap_ns)
+    plain = [
+        "j1939_batch=%d source=%s sha256=%s frames=%d"
+        % (result["batch_id"], result["source_file"],
+           result["source_sha256"][:16], result["total_frames"]),
+        "gaps data_gap_ns=%d control_gap_ns=%d"
+        % (result["data_gap_ns"], result["control_gap_ns"]),
+        "transfers total=%d completed=%d messages=%d problem_events=%d"
+        % (result["total_transfers"], result["completed_transfers"],
+           result["published_messages"], result["problem_events"]),
+        "state counts: " + ", ".join(
+            "%s=%d" % kv for kv in sorted(result["state_counts"].items())),
+    ]
+    if result["all_succeeded"]:
+        plain.append("outcome: all transfers completed")
+        code = 0
+    else:
+        plain.append("outcome: NOT all transfers succeeded; inspect with "
+                     "j1939-transfer and j1939-events")
+        code = 1
+    _out(result, args.json, plain)
+    return code
+
+
+def cmd_j1939_batches(args, store: Store) -> int:
+    rows = _j1939(store).batches()
+    plain = ["batch=%d frames=%d transfers=%d/%d messages=%d problems=%d "
+             "all_succeeded=%s"
+             % (r["batch_id"], r["total_frames"], r["completed_transfers"],
+                r["total_transfers"], r["published_messages"],
+                r["problem_events"], r["all_succeeded"])
+             for r in rows] or ["no j1939 batches imported"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_j1939_messages(args, store: Store) -> int:
+    rows = _j1939(store).messages(args.batch, args.bus)
+    plain = ["#%d batch=%d %s %d->%d pgn=0x%05X mode=%s %d bytes %d..%d"
+             % (r["message_id"], r["batch_id"], r["bus"], r["src_addr"],
+                r["dst_addr"], r["app_pgn"], r["mode"], r["length_bytes"],
+                r["start_ns"], r["end_ns"]) for r in rows] \
+        or ["no reassembled messages"]
+    if not args.json:
+        for line in plain:
+            print(line)
+        return 0
+    _out(rows, args.json)
+    return 0
+
+
+def cmd_j1939_message(args, store: Store) -> int:
+    detail = _j1939(store).message(args.message_id)
+    plain = [
+        "message #%d batch=%d %s %d->%d pgn=0x%05X mode=%s length=%d"
+        % (detail["message_id"], detail["batch_id"], detail["bus"],
+           detail["src_addr"], detail["dst_addr"], detail["app_pgn"],
+           detail["mode"], detail["length_bytes"]),
+        "start_ns=%d end_ns=%d" % (detail["start_ns"], detail["end_ns"]),
+        "payload_hex=%s" % detail["payload_hex"],
+        "byte sources:",
+    ]
+    for s in detail["sources"]:
+        plain.append("  packet=%d frame_id=%d line=%d payload_offset=%d "
+                     "frame_offset=%d data_len=%d data_hex=%s"
+                     % (s["packet_seq"], s["frame_id"], s["source_line"],
+                        s["payload_offset"], s["frame_offset"], s["data_len"],
+                        s["data_hex"]))
+    _out(detail, args.json, plain)
+    return 0
+
+
+def cmd_j1939_transfers(args, store: Store) -> int:
+    rows = _j1939(store).transfers(args.batch, args.status)
+    plain = ["#%d batch=%d %s %d->%d mode=%s pgn=0x%05X state=%s %d/%d packets"
+             % (r["transfer_id"], r["batch_id"], r["bus"], r["src_addr"],
+                r["dst_addr"], r["mode"], r["app_pgn"], r["state"],
+                r["next_seq"] - 1, r["total_packets"]) for r in rows] \
+        or ["no transfers recorded"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_j1939_transfer(args, store: Store) -> int:
+    detail = _j1939(store).transfer(args.transfer_id)
+    plain = [
+        "transfer #%d batch=%d %s %d->%d mode=%s app_pgn=0x%05X state=%s"
+        % (detail["transfer_id"], detail["batch_id"], detail["bus"],
+           detail["src_addr"], detail["dst_addr"], detail["mode"],
+           detail["app_pgn"], detail["state"]),
+        "announced %d byte(s) in %d packet(s); received %d; missing=%s"
+        % (detail["total_bytes"], detail["total_packets"],
+           detail["total_packets"] - len(detail["missing_packet_seqs"]),
+           detail["missing_packet_seqs"] or "none"),
+        "start_ns=%s end_ns=%s deadline_ns=%s failure_code=%s abort_reason=%s"
+        % (detail["start_ns"], detail["end_ns"], detail["deadline_ns"],
+           detail["failure_code"] or "-",
+           detail["abort_reason"] if detail["abort_reason"] is not None else "-"),
+        "controls (RTS/CTS/ACK raw eight bytes):",
+    ]
+    for c in detail["controls"]:
+        plain.append("  %s line=%d can_id=%s data=%s"
+                     % (c["control_type"], c["source_line"],
+                        c["can_id_text"], c["data_hex"]))
+    plain.append("packet sources:")
+    for p in detail["packets"]:
+        plain.append("  packet=%d line=%d data=%s"
+                     % (p["packet_seq"], p["source_line"], p["data_hex"]))
+    plain.append("event ledger:")
+    for e in detail["events"]:
+        plain.append("  #%d %s line=%s: %s"
+                     % (e["event_seq"], e["event_code"],
+                        e["source_line"] if e["source_line"] is not None else "-",
+                        e["message"]))
+    _out(detail, args.json, plain)
+    return 0
+
+
+def cmd_j1939_events(args, store: Store) -> int:
+    rows = _j1939(store).events(args.batch)
+    plain = ["#%d transfer=%s line=%s %s: %s"
+             % (r["event_seq"], r["transfer_id"] if r["transfer_id"] is not None
+                else "-", r["source_line"] if r["source_line"] is not None
+                else "-", r["event_code"], r["message"]) for r in rows] \
+        or ["no protocol events recorded"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_j1939_trace(args, store: Store) -> int:
+    result = _j1939(store).trace_bytes(args.message_id, args.start, args.end)
+    plain = ["trace message #%d payload [%d, %d) of %d byte(s): %d frame hit(s)"
+             % (result["message_id"], result["start"], result["end"],
+                result["length_bytes"], len(result["hits"]))]
+    for h in result["hits"]:
+        plain.append("  packet=%d line=%d %s can_id=%s payload[%d:%d] -> "
+                     "frame_offset[%d:%d] bytes=%s"
+                     % (h["packet_seq"], h["source_line"], h["bus"],
+                        h["can_id_text"], h["payload_start"], h["payload_end"],
+                        h["frame_offset_start"], h["frame_offset_end"],
+                        h["frame_bytes_hex"]))
+    _out(result, args.json, plain)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gtfs-store",
@@ -992,6 +1148,53 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--job-id", required=True, type=int, dest="job_id")
     p.add_argument("--run-id", required=True, dest="run_id")
     p.set_defaults(func=cmd_anon_member)
+
+    # Offline J1939 TP reassembly --------------------------------------
+    p = sub.add_parser("j1939-import",
+                       help="reassemble one CAN capture CSV into J1939 TP messages")
+    p.add_argument("--capture", required=True,
+                   help="UTF-8 CSV: bus,timestamp_ns,can_id,data_hex")
+    p.add_argument("--data-gap-ns", required=True, type=int, dest="data_gap_ns",
+                   help="positive inter-packet deadline in nanoseconds")
+    p.add_argument("--control-gap-ns", required=True, type=int,
+                   dest="control_gap_ns",
+                   help="positive RTS/CTS/ACK deadline in nanoseconds")
+    p.set_defaults(func=cmd_j1939_import)
+
+    p = sub.add_parser("j1939-batches", help="list imported J1939 capture batches")
+    p.set_defaults(func=cmd_j1939_batches)
+
+    p = sub.add_parser("j1939-messages", help="list reassembled application messages")
+    p.add_argument("--batch", type=int)
+    p.add_argument("--bus")
+    p.set_defaults(func=cmd_j1939_messages)
+
+    p = sub.add_parser("j1939-message", help="show one message, payload and byte sources")
+    p.add_argument("--message-id", required=True, type=int, dest="message_id")
+    p.set_defaults(func=cmd_j1939_message)
+
+    p = sub.add_parser("j1939-transfers", help="list TP transfers and their states")
+    p.add_argument("--batch", type=int)
+    p.add_argument("--status", help="filter one terminal/active state")
+    p.set_defaults(func=cmd_j1939_transfers)
+
+    p = sub.add_parser("j1939-transfer",
+                       help="inspect one transfer: events, controls, packets, gaps")
+    p.add_argument("--transfer-id", required=True, type=int, dest="transfer_id")
+    p.set_defaults(func=cmd_j1939_transfer)
+
+    p = sub.add_parser("j1939-events", help="list protocol diagnostics of a batch")
+    p.add_argument("--batch", type=int)
+    p.set_defaults(func=cmd_j1939_events)
+
+    p = sub.add_parser("j1939-trace",
+                       help="trace a [start,end) payload interval back to DT frames")
+    p.add_argument("--message-id", required=True, type=int, dest="message_id")
+    p.add_argument("--start", required=True, type=int,
+                   help="inclusive payload byte offset")
+    p.add_argument("--end", required=True, type=int,
+                   help="exclusive payload byte offset")
+    p.set_defaults(func=cmd_j1939_trace)
     return parser
 
 

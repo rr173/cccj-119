@@ -1,0 +1,2 @@
+bus,timestamp_ns,can_id,data_hex
+can-alpha,1000,123ABC,0000000000000000
