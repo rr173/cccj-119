@@ -1,0 +1,215 @@
+{
+  "trunk_by_region": {
+    "X|member:ALL": {
+      "coords": {
+        "line": {
+          "kind": "member",
+          "value": "X"
+        },
+        "depot": {
+          "kind": "member",
+          "value": "ALL"
+        }
+      },
+      "metrics": {
+        "row_weight": {
+          "num": "71",
+          "den": "24"
+        },
+        "value_weight": {
+          "num": "71",
+          "den": "24"
+        },
+        "amount_sum": {
+          "num": "36893488147419103341",
+          "den": "8"
+        },
+        "amount_mean": {
+          "num": "110680464442257310023",
+          "den": "71"
+        },
+        "vehicle_count": 2
+      }
+    },
+    "null|member:ALL": {
+      "coords": {
+        "line": {
+          "kind": "null",
+          "value": null
+        },
+        "depot": {
+          "kind": "member",
+          "value": "ALL"
+        }
+      },
+      "metrics": {
+        "row_weight": {
+          "num": "1",
+          "den": "2"
+        },
+        "value_weight": {
+          "num": "0",
+          "den": "1"
+        },
+        "amount_sum": null,
+        "amount_mean": null,
+        "vehicle_count": 0
+      }
+    },
+    "X|null": {
+      "coords": {
+        "line": {
+          "kind": "member",
+          "value": "X"
+        },
+        "depot": {
+          "kind": "null",
+          "value": null
+        }
+      },
+      "metrics": {
+        "row_weight": {
+          "num": "3",
+          "den": "4"
+        },
+        "value_weight": {
+          "num": "0",
+          "den": "1"
+        },
+        "amount_sum": null,
+        "amount_mean": null,
+        "vehicle_count": 1
+      }
+    }
+  },
+  "leaf_by_leaf": {
+    "L2|D2": {
+      "coords": {
+        "line": {
+          "kind": "member",
+          "value": "L2"
+        },
+        "depot": {
+          "kind": "member",
+          "value": "D2"
+        }
+      },
+      "metrics": {
+        "row_weight": {
+          "num": "2",
+          "den": "1"
+        },
+        "value_weight": {
+          "num": "2",
+          "den": "1"
+        },
+        "amount_sum": {
+          "num": "0",
+          "den": "1"
+        },
+        "amount_mean": {
+          "num": "0",
+          "den": "1"
+        },
+        "vehicle_count": 1
+      }
+    },
+    "007|D1": {
+      "coords": {
+        "line": {
+          "kind": "member",
+          "value": "007"
+        },
+        "depot": {
+          "kind": "member",
+          "value": "D1"
+        }
+      },
+      "metrics": {
+        "row_weight": {
+          "num": "2",
+          "den": "1"
+        },
+        "value_weight": {
+          "num": "2",
+          "den": "1"
+        },
+        "amount_sum": {
+          "num": "18446744073709551618",
+          "den": "1"
+        },
+        "amount_mean": {
+          "num": "9223372036854775809",
+          "den": "1"
+        },
+        "vehicle_count": 1
+      }
+    }
+  },
+  "root_root": {
+    "R|RD": {
+      "coords": {
+        "line": {
+          "kind": "member",
+          "value": "R"
+        },
+        "depot": {
+          "kind": "member",
+          "value": "RD"
+        }
+      },
+      "metrics": {
+        "row_weight": {
+          "num": "7",
+          "den": "1"
+        },
+        "value_weight": {
+          "num": "7",
+          "den": "1"
+        },
+        "amount_sum": {
+          "num": "18446744073709551653",
+          "den": "1"
+        },
+        "amount_mean": {
+          "num": "18446744073709551653",
+          "den": "7"
+        },
+        "vehicle_count": 2
+      }
+    }
+  },
+  "all_all": {
+    "all|all": {
+      "coords": {
+        "line": {
+          "kind": "all",
+          "value": null
+        },
+        "depot": {
+          "kind": "all",
+          "value": null
+        }
+      },
+      "metrics": {
+        "row_weight": {
+          "num": "9",
+          "den": "1"
+        },
+        "value_weight": {
+          "num": "7",
+          "den": "1"
+        },
+        "amount_sum": {
+          "num": "18446744073709551653",
+          "den": "1"
+        },
+        "amount_mean": {
+          "num": "18446744073709551653",
+          "den": "7"
+        },
+        "vehicle_count": 3
+      }
+    }
+  }
+}

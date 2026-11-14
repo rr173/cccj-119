@@ -23,6 +23,9 @@ python3 -I tools/build_anon_fixtures.py         # 生成匿名出仓手工样本
 python3 -I tools/anon_walkthrough.py            # 匿名出仓演练（独立复核、崩溃重开、20 万采样测内存）
 python3 -I tools/build_j1939_fixtures.py        # 生成 J1939 TP 手工抓包样本与期望
 python3 -I tools/j1939_walkthrough.py           # J1939 重组演练（逐字节复核、崩溃重开）
+python3 -I tools/build_rollup_fixtures.py       # 生成带权层级汇总的手工例子与错误用例
+python3 -I tools/rollup_walkthrough.py          # 汇总演练（手写账逐格核对、独立枚举器、错误演示）
+python3 -I tools/rollup_scale.py                # 10 万→20 万笔实测：峰值 RSS、格数、耗时
 ```
 
 ## 终端入口
@@ -765,3 +768,78 @@ python3 -I tools/j1939_walkthrough.py
 python3 -I tools/verify_j1939_output.py --db <演练库>
 python3 -I -m unittest discover -s tests      # 含 tests/test_j1939.py
 ```
+
+# 带权层级汇总：两个具名维度 × 多粒度精确有理数指标（Rollup）
+
+运营分析员交一份整理好的运营事实（JSONL）和一套分类关系（JSON 配置），
+选几种汇总粒度，就能查询各格指标，并下钻看某笔事实按多少比例贡献给
+这个格。解决两个老问题：一条线路按比例分属两个类别、同一辆车出现在
+多个小计时，**小计不能直接相加**——每个格独立保存五个精确指标，车辆
+去重永远在该格内部完成，均值永远是总量/总权而不是细格均值的平均。
+
+事实只来自用户整理好的文件：不从班次、GPS、匿名路径或 CAN 会话推导，
+不处理增量修订；一次构建产出一个全新的自包含结果库，已有结果库绝不
+覆盖。详见 `docs/ROLLUP.md`（配置/事实契约、落盘结构、去重方式、
+复杂度与批次缓存设置）。
+
+## 终端入口（汇总子命令；不使用主 --db）
+
+```
+gtfs-store rollup-build  --config C.json --facts F.jsonl --out R.db \
+                         [--batch-size N] [--cache-kib K]
+gtfs-store rollup-info   --result R.db           # 构建元数据与粒度清单
+gtfs-store rollup-grains --result R.db           # 各粒度与格数
+gtfs-store rollup-cells  --result R.db --grain G \
+    [--d1-kind member|null|all [--d1-value V]] \
+    [--d2-kind member|null|all [--d2-value V]] [--limit N] [--offset M]
+gtfs-store rollup-drill  --result R.db --grain G \
+    --d1-kind K [--d1-value V] --d2-kind K [--d2-value V] [--offset M] [--limit N]
+gtfs-store rollup-fact   --result R.db --line N  # 按物理行号读回事实
+```
+
+- 坐标三种 `kind` 永不混淆：`member`（真实成员，编号 `ALL`、`007` 也是
+  普通成员）、`null`（来源未分类，沿每级仍为 null，不进根）、`all`
+  （粒度去掉了该维度）。筛选时真实 null 与 ALL 分别可选。
+- 每格五指标：`row_weight`/`value_weight`/`amount_sum`/`amount_mean`
+  为约分有理数 `{"num","den"}`（零固定 0/1，抵消得 0 不变 null，无金额
+  时 sum/mean 为 null），`vehicle_count` 为整数（不乘系数）。
+- 下钻按源行号递增分页，响应给出该格完整贡献行数与总指标；同一格同一
+  源行只有一条合并系数。
+- 构建失败非零退出且不留可查询的残骸；结果库已存在时明确拒绝覆盖；
+  新进程只凭结果库即可查询。
+
+## 手工例子（预期值手写，不用产品输出反推）
+
+`dist/rollup/manual-*`：L 以 1/2、1/2 分到 A、B；A→X，B 以 1/2、1/2 分到
+X、Y，因此 L 在 X/Y 级为 X 3/4、Y 1/4；X/Y 再到唯一根。两笔 L 事实（同一
+车辆 v，金额 10 与 20）+ 一笔第一维为 null 的事实：
+
+- X 格：row_weight=3/2、amount_sum=45/2、amount_mean=15、vehicle_count=1；
+- Y 格：1/2、15/2、15、1；
+- A/B 细格车辆数 1+1 不等于根格的 1；根格 row_weight=2 而 ALL 格为 3
+  （null 事实不进根）。
+
+`dist/rollup/stress-*` 把两维同时分叉、多路径重合、同车跨叶、两笔完全
+重复、null 车辆与空字符串车辆、全 null 金额、负数抵消（精确 0/1）、
+超过 64 位的金额、合法成员编号 `ALL` 与 `007` 全部纳入实际运行核对。
+
+## 复现构建、筛选、下钻与全部检查
+
+```
+python3 -I tools/build_rollup_fixtures.py     # 生成 dist/rollup/ 全部输入与手写预期
+./gtfs-store --json rollup-build --config dist/rollup/manual-config.json \
+    --facts dist/rollup/manual-facts.jsonl --out /tmp/manual.db
+./gtfs-store --json rollup-cells --result /tmp/manual.db --grain trunk_by_depot \
+    --d1-kind member --d1-value X
+./gtfs-store --json rollup-drill --result /tmp/manual.db --grain trunk_by_depot \
+    --d1-kind member --d1-value X --d2-kind member --d2-value D1 --limit 1
+python3 -I tools/rollup_walkthrough.py        # 逐格核对+独立枚举器+错误演示+覆盖拒绝
+python3 -I tools/rollup_scale.py              # 10 万→20 万笔：RSS、格数、耗时
+python3 -I -m unittest discover -s tests      # 含 tests/test_rollup.py（50 个用例）
+```
+
+演练中的参考枚举器（`tools/rollup_walkthrough.py` 与
+`tests/test_rollup.py` 内各一份）逐条枚举原始路径暴力求和，不 import
+`gtfs_store.rollup` 的任何汇总函数；规模实测里 10 万笔（约 90 万贡献行）
+峰值 RSS ≈ 65 MB，输入翻倍后 ≈ 66 MB、耗时 ×1.94，事实、贡献行与车辆
+集合全程留在 SQLite。

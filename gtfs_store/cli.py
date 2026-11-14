@@ -638,6 +638,154 @@ def cmd_anon_member(args, store: Store) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Weighted two-dimension hierarchical rollup (self-contained result DB)
+# ---------------------------------------------------------------------------
+
+def _frac_text(frac: dict | None) -> str:
+    if frac is None:
+        return "null"
+    if frac["den"] == "1":
+        return frac["num"]
+    return "%s/%s" % (frac["num"], frac["den"])
+
+
+def _coord_plain(name: str, coord: dict) -> str:
+    if coord["kind"] == "all":
+        return "%s=*" % name
+    if coord["kind"] == "null":
+        return "%s=NULL" % name
+    return '%s="%s"' % (name, coord["value"])
+
+
+def _metrics_plain(metrics: dict) -> str:
+    return ("row_weight=%s value_weight=%s amount_sum=%s amount_mean=%s "
+            "vehicle_count=%d"
+            % (_frac_text(metrics["row_weight"]), _frac_text(metrics["value_weight"]),
+               _frac_text(metrics["amount_sum"]), _frac_text(metrics["amount_mean"]),
+               metrics["vehicle_count"]))
+
+
+def _rollup_coord(args, prefix: str):
+    from .rollup import Coord
+    kind = getattr(args, "%s_kind" % prefix)
+    value = getattr(args, "%s_value" % prefix)
+    if kind is None:
+        if value is not None:
+            raise GtfsError("--%s-value requires --%s-kind" % (prefix, prefix))
+        return None
+    if kind == "member" and not value:
+        raise GtfsError("--%s-kind member requires --%s-value" % (prefix, prefix))
+    if kind in ("null", "all") and value is not None:
+        raise GtfsError("--%s-kind %s takes no --%s-value" % (prefix, kind, prefix))
+    return Coord(kind, value)
+
+
+def cmd_rollup_build(args) -> int:
+    from .rollup import build
+    result = build(args.config, args.facts, args.out,
+                   batch_size=args.batch_size, cache_kib=args.cache_kib)
+    _out(result, args.json, [
+        "built result=%s facts=%d grains=%d cells=%d contributions=%d"
+        % (result["result"], result["facts"], result["grains"],
+           result["cells"], result["contributions"]),
+        "config sha256=%s" % result["config_sha256"],
+        "facts sha256=%s" % result["facts_sha256"],
+        "batch_size=%d cache_kib=%d" % (result["batch_size"], result["cache_kib"]),
+    ])
+    return 0
+
+
+def cmd_rollup_info(args) -> int:
+    from .rollup import RollupResult
+    with RollupResult(args.result) as result:
+        info = result.info()
+    plain = [
+        "result=%s status=%s created_at=%s"
+        % (info["result"], info["status"], info["created_at"]),
+        "facts=%d cells=%d contributions=%d grains=%d"
+        % (info["fact_rows"], info["cell_rows"], info["contribution_rows"],
+           info["grain_count"]),
+        "config=%s sha256=%s" % (info["config_file"], info["config_sha256"]),
+        "facts=%s sha256=%s" % (info["facts_file"], info["facts_sha256"]),
+        "dimensions=%s batch_size=%d cache_kib=%d"
+        % (",".join(info["dimensions"]), info["batch_size"], info["cache_kib"]),
+    ]
+    for grain in info["grains"]:
+        plain.append("  grain=%s levels=%s cells=%d"
+                     % (grain["name"], grain["levels"], grain["cells"]))
+    _out(info, args.json, plain)
+    return 0
+
+
+def cmd_rollup_grains(args) -> int:
+    from .rollup import RollupResult
+    with RollupResult(args.result) as result:
+        grains = result.grains()
+    plain = ["grain=%s levels=%s cells=%d"
+             % (g["name"], g["levels"], g["cells"]) for g in grains]
+    _out(grains, args.json, plain)
+    return 0
+
+
+def cmd_rollup_cells(args) -> int:
+    from .rollup import RollupResult
+    d1 = _rollup_coord(args, "d1")
+    d2 = _rollup_coord(args, "d2")
+    with RollupResult(args.result) as result:
+        cells = result.cells(args.grain, d1=d1, d2=d2,
+                             limit=args.limit, offset=args.offset)
+    plain = ["grain=%s cells=%d" % (args.grain, len(cells))]
+    for cell in cells:
+        coords = " ".join(_coord_plain(name, coord)
+                          for name, coord in cell["coords"].items())
+        plain.append("[%s] %s" % (coords, _metrics_plain(cell["metrics"])))
+    _out(cells, args.json, plain)
+    return 0
+
+
+def cmd_rollup_drill(args) -> int:
+    from .rollup import RollupResult
+    d1 = _rollup_coord(args, "d1")
+    d2 = _rollup_coord(args, "d2")
+    if d1 is None or d2 is None:
+        raise GtfsError("drill needs --d1-kind and --d2-kind to name one cell")
+    with RollupResult(args.result) as result:
+        detail = result.drill(args.grain, d1, d2,
+                              offset=args.offset, limit=args.limit)
+    coords = " ".join(_coord_plain(name, coord)
+                      for name, coord in detail["coords"].items())
+    plain = [
+        "grain=%s cell=[%s] contributions=%d (page offset=%d limit=%d)"
+        % (detail["grain"], coords, detail["total_contributions"],
+           detail["offset"], detail["limit"]),
+        "metrics: " + _metrics_plain(detail["metrics"]),
+    ]
+    for row in detail["rows"]:
+        dims = " ".join("%s=%s" % (name, json.dumps(value, ensure_ascii=False))
+                        for name, value in row["dimensions"].items())
+        plain.append("  line=%d %s vehicle_unit=%s amount=%s coeff=%s"
+                     % (row["line_no"], dims,
+                        json.dumps(row["vehicle_unit"], ensure_ascii=False),
+                        row["amount"], _frac_text(row["coefficient"])))
+    _out(detail, args.json, plain)
+    return 0
+
+
+def cmd_rollup_fact(args) -> int:
+    from .rollup import RollupResult
+    with RollupResult(args.result) as result:
+        fact = result.fact(args.line)
+    dims = " ".join("%s=%s" % (name, json.dumps(value, ensure_ascii=False))
+                    for name, value in fact["dimensions"].items())
+    _out(fact, args.json, [
+        "line=%d %s vehicle_unit=%s amount=%s"
+        % (fact["line_no"], dims,
+           json.dumps(fact["vehicle_unit"], ensure_ascii=False), fact["amount"]),
+    ])
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Realtime channel (needs gtfs-realtime-bindings; imported lazily)
 # ---------------------------------------------------------------------------
 
@@ -1195,6 +1343,63 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--end", required=True, type=int,
                    help="exclusive payload byte offset")
     p.set_defaults(func=cmd_j1939_trace)
+
+    # Weighted two-dimension hierarchical rollup ---------------------------
+    # These commands use their own result database (--out / --result) and
+    # never touch the main --db store.
+    p = sub.add_parser("rollup-build",
+                       help="build one rollup result DB from a config and a JSONL fact file")
+    p.add_argument("--config", required=True, help="rollup config JSON (read-only input)")
+    p.add_argument("--facts", required=True, help="JSONL fact file (read-only input)")
+    p.add_argument("--out", required=True,
+                   help="result SQLite path; must not exist (never overwritten)")
+    p.add_argument("--batch-size", type=int, default=4096, dest="batch_size",
+                   help="facts per transaction / accumulator flush (default: 4096)")
+    p.add_argument("--cache-kib", type=int, default=16384, dest="cache_kib",
+                   help="SQLite page cache for the build, in KiB (default: 16384)")
+    p.set_defaults(func=cmd_rollup_build, uses_store=False)
+
+    p = sub.add_parser("rollup-info", help="show build metadata and grains of a result DB")
+    p.add_argument("--result", required=True, help="rollup result SQLite path")
+    p.set_defaults(func=cmd_rollup_info, uses_store=False)
+
+    p = sub.add_parser("rollup-grains", help="list the grains stored in a result DB")
+    p.add_argument("--result", required=True, help="rollup result SQLite path")
+    p.set_defaults(func=cmd_rollup_grains, uses_store=False)
+
+    p = sub.add_parser("rollup-cells", help="read occupied cells of one grain")
+    p.add_argument("--result", required=True, help="rollup result SQLite path")
+    p.add_argument("--grain", required=True, help="grain name")
+    p.add_argument("--d1-kind", choices=["member", "null", "all"], dest="d1_kind",
+                   help="filter dimension 1 by coordinate kind")
+    p.add_argument("--d1-value", dest="d1_value",
+                   help="member id for --d1-kind member (e.g. ALL or 007)")
+    p.add_argument("--d2-kind", choices=["member", "null", "all"], dest="d2_kind",
+                   help="filter dimension 2 by coordinate kind")
+    p.add_argument("--d2-value", dest="d2_value",
+                   help="member id for --d2-kind member")
+    p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--offset", type=int, default=0)
+    p.set_defaults(func=cmd_rollup_cells, uses_store=False)
+
+    p = sub.add_parser("rollup-drill",
+                       help="page one cell's contribution ledger by source line")
+    p.add_argument("--result", required=True, help="rollup result SQLite path")
+    p.add_argument("--grain", required=True, help="grain name")
+    p.add_argument("--d1-kind", required=True, choices=["member", "null", "all"],
+                   dest="d1_kind")
+    p.add_argument("--d1-value", dest="d1_value")
+    p.add_argument("--d2-kind", required=True, choices=["member", "null", "all"],
+                   dest="d2_kind")
+    p.add_argument("--d2-value", dest="d2_value")
+    p.add_argument("--offset", type=int, default=0)
+    p.add_argument("--limit", type=int, default=100)
+    p.set_defaults(func=cmd_rollup_drill, uses_store=False)
+
+    p = sub.add_parser("rollup-fact", help="show one stored fact by physical line number")
+    p.add_argument("--result", required=True, help="rollup result SQLite path")
+    p.add_argument("--line", required=True, type=int, help="1-based physical line number")
+    p.set_defaults(func=cmd_rollup_fact, uses_store=False)
     return parser
 
 
@@ -1208,6 +1413,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 2
     try:
+        if not getattr(args, "uses_store", True):
+            return args.func(args)
         with Store(args.db) as store:
             return args.func(args, store)
     except GtfsError as exc:

@@ -1,0 +1,323 @@
+{
+  "grains": {
+    "trunk_by_depot": [
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "member",
+            "value": "X"
+          },
+          "depot": {
+            "kind": "member",
+            "value": "D1"
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "3",
+            "den": "2"
+          },
+          "value_weight": {
+            "num": "3",
+            "den": "2"
+          },
+          "amount_sum": {
+            "num": "45",
+            "den": "2"
+          },
+          "amount_mean": {
+            "num": "15",
+            "den": "1"
+          },
+          "vehicle_count": 1
+        }
+      },
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "member",
+            "value": "Y"
+          },
+          "depot": {
+            "kind": "member",
+            "value": "D1"
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "1",
+            "den": "2"
+          },
+          "value_weight": {
+            "num": "1",
+            "den": "2"
+          },
+          "amount_sum": {
+            "num": "15",
+            "den": "2"
+          },
+          "amount_mean": {
+            "num": "15",
+            "den": "1"
+          },
+          "vehicle_count": 1
+        }
+      },
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "null",
+            "value": null
+          },
+          "depot": {
+            "kind": "member",
+            "value": "D1"
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "value_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "amount_sum": {
+            "num": "7",
+            "den": "1"
+          },
+          "amount_mean": {
+            "num": "7",
+            "den": "1"
+          },
+          "vehicle_count": 1
+        }
+      }
+    ],
+    "category_by_depot": [
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "member",
+            "value": "A"
+          },
+          "depot": {
+            "kind": "member",
+            "value": "D1"
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "value_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "amount_sum": {
+            "num": "15",
+            "den": "1"
+          },
+          "amount_mean": {
+            "num": "15",
+            "den": "1"
+          },
+          "vehicle_count": 1
+        }
+      },
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "member",
+            "value": "B"
+          },
+          "depot": {
+            "kind": "member",
+            "value": "D1"
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "value_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "amount_sum": {
+            "num": "15",
+            "den": "1"
+          },
+          "amount_mean": {
+            "num": "15",
+            "den": "1"
+          },
+          "vehicle_count": 1
+        }
+      },
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "null",
+            "value": null
+          },
+          "depot": {
+            "kind": "member",
+            "value": "D1"
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "value_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "amount_sum": {
+            "num": "7",
+            "den": "1"
+          },
+          "amount_mean": {
+            "num": "7",
+            "den": "1"
+          },
+          "vehicle_count": 1
+        }
+      }
+    ],
+    "root_totals": [
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "member",
+            "value": "R"
+          },
+          "depot": {
+            "kind": "member",
+            "value": "DALL"
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "2",
+            "den": "1"
+          },
+          "value_weight": {
+            "num": "2",
+            "den": "1"
+          },
+          "amount_sum": {
+            "num": "30",
+            "den": "1"
+          },
+          "amount_mean": {
+            "num": "15",
+            "den": "1"
+          },
+          "vehicle_count": 1
+        }
+      },
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "null",
+            "value": null
+          },
+          "depot": {
+            "kind": "member",
+            "value": "DALL"
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "value_weight": {
+            "num": "1",
+            "den": "1"
+          },
+          "amount_sum": {
+            "num": "7",
+            "den": "1"
+          },
+          "amount_mean": {
+            "num": "7",
+            "den": "1"
+          },
+          "vehicle_count": 1
+        }
+      }
+    ],
+    "grand_total": [
+      {
+        "coords": {
+          "line_cat": {
+            "kind": "all",
+            "value": null
+          },
+          "depot": {
+            "kind": "all",
+            "value": null
+          }
+        },
+        "metrics": {
+          "row_weight": {
+            "num": "3",
+            "den": "1"
+          },
+          "value_weight": {
+            "num": "3",
+            "den": "1"
+          },
+          "amount_sum": {
+            "num": "37",
+            "den": "1"
+          },
+          "amount_mean": {
+            "num": "37",
+            "den": "3"
+          },
+          "vehicle_count": 2
+        }
+      }
+    ]
+  },
+  "drill": {
+    "grain": "trunk_by_depot",
+    "d1": {
+      "kind": "member",
+      "value": "X"
+    },
+    "d2": {
+      "kind": "member",
+      "value": "D1"
+    },
+    "total_contributions": 2,
+    "rows": [
+      {
+        "line_no": 1,
+        "vehicle_unit": "v",
+        "amount": 10,
+        "coefficient": {
+          "num": "3",
+          "den": "4"
+        }
+      },
+      {
+        "line_no": 2,
+        "vehicle_unit": "v",
+        "amount": 20,
+        "coefficient": {
+          "num": "3",
+          "den": "4"
+        }
+      }
+    ]
+  }
+}

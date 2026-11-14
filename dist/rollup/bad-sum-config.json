@@ -1,0 +1,158 @@
+{
+  "dimensions": {
+    "line_cat": {
+      "levels": [
+        {
+          "name": "line",
+          "members": [
+            "L"
+          ]
+        },
+        {
+          "name": "category",
+          "members": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "name": "trunk",
+          "members": [
+            "X",
+            "Y"
+          ]
+        },
+        {
+          "name": "root",
+          "members": [
+            "R"
+          ]
+        }
+      ],
+      "links": [
+        {
+          "from": "line",
+          "to": "category",
+          "edges": [
+            {
+              "child": "L",
+              "parent": "A",
+              "numerator": 1,
+              "denominator": 2
+            }
+          ]
+        },
+        {
+          "from": "category",
+          "to": "trunk",
+          "edges": [
+            {
+              "child": "A",
+              "parent": "X",
+              "numerator": 1,
+              "denominator": 1
+            },
+            {
+              "child": "B",
+              "parent": "X",
+              "numerator": 1,
+              "denominator": 2
+            },
+            {
+              "child": "B",
+              "parent": "Y",
+              "numerator": 1,
+              "denominator": 2
+            }
+          ]
+        },
+        {
+          "from": "trunk",
+          "to": "root",
+          "edges": [
+            {
+              "child": "X",
+              "parent": "R",
+              "numerator": 1,
+              "denominator": 1
+            },
+            {
+              "child": "Y",
+              "parent": "R",
+              "numerator": 1,
+              "denominator": 1
+            }
+          ]
+        }
+      ]
+    },
+    "depot": {
+      "levels": [
+        {
+          "name": "depot_leaf",
+          "members": [
+            "D1"
+          ]
+        },
+        {
+          "name": "depot_root",
+          "members": [
+            "DALL"
+          ]
+        }
+      ],
+      "links": [
+        {
+          "from": "depot_leaf",
+          "to": "depot_root",
+          "edges": [
+            {
+              "child": "D1",
+              "parent": "DALL",
+              "numerator": 1,
+              "denominator": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "fields": {
+    "dimensions": {
+      "line_cat": "line",
+      "depot": "depot"
+    },
+    "vehicle": "vehicle_unit",
+    "amount": "amount"
+  },
+  "grains": [
+    {
+      "name": "trunk_by_depot",
+      "levels": {
+        "line_cat": "trunk",
+        "depot": "depot_leaf"
+      }
+    },
+    {
+      "name": "category_by_depot",
+      "levels": {
+        "line_cat": "category",
+        "depot": "depot_leaf"
+      }
+    },
+    {
+      "name": "root_totals",
+      "levels": {
+        "line_cat": "root",
+        "depot": "depot_root"
+      }
+    },
+    {
+      "name": "grand_total",
+      "levels": {
+        "line_cat": "ALL",
+        "depot": "ALL"
+      }
+    }
+  ]
+}

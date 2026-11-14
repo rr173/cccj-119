@@ -1,0 +1,9 @@
+{"line_code": "L1", "depot_code": "D1", "vehicle_unit": "v", "amount": 10}
+{"line_code": "L1", "depot_code": "D1", "vehicle_unit": "v", "amount": 20}
+{"line_code": "L2", "depot_code": "D2", "vehicle_unit": "v", "amount": -30}
+{"line_code": "L2", "depot_code": "D2", "vehicle_unit": "v", "amount": 30}
+{"line_code": "007", "depot_code": "D1", "vehicle_unit": "", "amount": 9223372036854775809}
+{"line_code": "007", "depot_code": "D1", "vehicle_unit": "", "amount": 9223372036854775809}
+{"line_code": null, "depot_code": "D1", "vehicle_unit": null, "amount": null}
+{"line_code": "L1", "depot_code": null, "vehicle_unit": "u2", "amount": null}
+{"line_code": "L1", "depot_code": "D1", "vehicle_unit": null, "amount": 5}
