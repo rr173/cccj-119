@@ -10,11 +10,14 @@ from .errors import GtfsError, RejectError
 
 __version__ = "1.0.0"
 
-__all__ = ["GtfsError", "RejectError", "Store", "__version__"]
+__all__ = ["GtfsError", "RejectError", "Store", "FareStore", "__version__"]
 
 
 def __getattr__(name: str):
     if name == "Store":
         from .store import Store
         return Store
+    if name == "FareStore":
+        from .fares import FareStore
+        return FareStore
     raise AttributeError(name)

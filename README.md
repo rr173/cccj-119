@@ -13,8 +13,10 @@
 时区数据来自系统 IANA 数据库（`zoneinfo`）。
 
 ```
-python3 -I -m unittest discover -s tests -v     # 全部测试
+python3 -I -m unittest discover -s tests -v     # 全部测试（含票价清分）
 python3 -I tools/build_fixtures.py              # 重新生成示例包
+python3 -I tools/build_fare_fixtures.py         # 重新生成票价规则包与清分批次
+python3 -I tools/fare_walkthrough.py            # 票价清分演练（手工账逐段核对）
 ```
 
 ## 终端入口
@@ -290,3 +292,95 @@ A/B 开局后仅替换 A、停开后撤回、完整包清空、撤旧换号指�
 旧值与显式零读回、坏站序被拒后修正、旧包在实体消失后再次到达、同戳改包、恰好
 到期但来源仍有心跳、两个来源同号互不影响、两名接收者争用同一来源（两种串行结局）
 以及重开进程后的状态核对。
+
+# 离线票价清分管道（Fare clearing）
+
+在静态班表之上新增**离线、只读**的应收复核管道：把已经发生的乘车段关联到静态
+线路与上下车站、匹配票价条款，再按同一张票的换乘额度逐段复核合同应收。它不接
+支付、不找最便宜路线、不按时刻表猜乘客坐过哪班车，也不用实时预测改写输入时刻。
+全程只需 Python 标准库 + SQLite。
+
+## 终端入口（票价子命令）
+
+```
+gtfs-store [--db PATH] [--json] fare-install    --package X.zip
+gtfs-store [--db PATH] [--json] fare-packages   [--feed-key K] [--edition E]
+gtfs-store [--db PATH] [--json] fare-products   --feed-key K --edition E --fare-version V
+gtfs-store [--db PATH] [--json] fare-rules      --feed-key K --edition E --fare-version V
+gtfs-store [--db PATH] [--json] fare-zones      --feed-key K --edition E --fare-version V
+gtfs-store [--db PATH] [--json] fare-rejections --feed-key K --edition E [--fare-version V]
+gtfs-store [--db PATH] [--json] fare-settle     --feed-key K --edition E --fare-version V --batch legs.csv
+```
+
+`fare-install` 退出码：成功/幂等重送为 `0`；整包拒收为 `1`；版本内容冲突等用法
+错误为 `2`。`fare-settle` 对链级业务失败（无规则、混币种等）仍返回 `0`——其他链
+正常出结果；只有批次本身解析不了时才返回 `1`。
+
+## 规则包格式（项目自有契约，非 GTFS Fares）
+
+ZIP 内四个顶层 JSON 成员，缺一不可、不接受目录成员：
+
+- `manifest.json`：`feed_key` / `edition` / `fare_version`，绑定一份**已 ready**
+  的静态版本；
+- `stop_zones.json`：`stop_id -> zone_id`，一个站只能属于一个票区；
+- `products.json`：非空字符串 `product_id`、金额字符串、币种、`validity_seconds`、
+  `max_legs`、`covers`（必须包含自己）；
+- `rules.json`：`rule_id`、整数 `priority`、`route_id`、`from_zone`、`to_zone`、
+  `product_id`；三个条件用 JSON `null` 表示任意，空字符串 `""` 是永不命中的
+  字面值，绝不通配。
+
+金额只接受十进制定点字符串：CNY/USD 两位小数、JPY 零位小数；拒绝指数写法、
+NaN、Infinity、负数、隐式舍入和超精度值；内部一律存整数最小货币单位，`0.00`/`0`
+是有效产品。`validity_seconds` 与 `max_legs` 必须是正整数（JSON 布尔不算整数）。
+重复编号、悬空覆盖/购票引用、未知字段、重复 JSON 键、映射站或规则线路在绑定静态
+版本中不存在，都会在安装时拒绝整包，旧版本一行不改。
+
+### 同优先级交叠预检
+
+安装前按绑定版本的**实际线路集合**与本包出现的**票区集合**做条件集合交集：
+同优先级、三列条件可同时成立的两条规则即冲突，输出冲突规则对与一个具体的
+route/from_zone/to_zone 见证，即使两条规则指向同一产品也拒绝，不靠文件顺序
+断案。不同优先级允许交叠（优先级本来就用来裁决）。不枚举站点对。
+
+### 版本账
+
+`(feed_key, edition, fare_version)` 唯一。同版本同内容重送幂等成功；同版本不同
+内容直接报冲突，必须换新版本号。拒收也留痕（`fare_rejections`），且不占用 ready
+名称之外的语义；另一个版本的安装永不改动历史已安装包。
+
+## 批次与清分语义
+
+批次 CSV 列：`journey_id, leg_index, trip_id, board_sequence, alight_sequence,
+board_utc, alight_utc`（UTC 整数秒）。行可乱序；每链 `leg_index` 必须唯一且从 1
+连续。静态表只用于核对身份与顺序：trip 必须存在、两个站序必须存在且上车站序
+严格小于下车站序（不要求连续，`007` 原样保留）、上下车站都要有票区映射、
+段内下车不早于上车、下一段上车不早于上一段下车。不检查运营日、不重展开班次。
+
+命中的最高优先级规则决定基础产品；无规则则该链失败。一张链的基础产品必须同
+币种，否则整链拒绝，不做相加或换汇。票的状态机只看**最近一次购买**的票：
+
+1. 第一段购买基础产品，从上段上车秒计票龄，已用段数 1；
+2. 下一段基础产品在覆盖集合内、上车时刻**严格小于**购票时刻+有效秒、已用段数
+   **小于**上限，则收费 0 并消耗一段——不续期、不恢复额度、不回头挑旧票；
+3. 否则重买并重新计时计数，原因列明 `first_purchase` / `expired` /
+   `quota_exhausted` / `product_not_covered`，多个同时成立全部列出。
+
+恰好到期或额度恰好用完都要重买；上车时可用即可，下车越过到期点不补收。失败链
+只给可定位到输入行/段号的原因，不返回看似可结算的部分总额，批内其他链照常。
+一次读取固定一份规则包与一份静态快照，处理中不混版本。
+
+## 输出与表结构
+
+成功链给币种与总应收（最小单位整数 + 定点文本），逐段给静态线路、上下车站与
+票区、命中规则、基础产品、实际付费产品、沿用购票段号、收费、票到期秒与用后
+段数。新表：`fare_packages`、`fare_rejections`、`fare_stop_zones`、
+`fare_products`、`fare_product_covers`、`fare_rules`，全部以
+`(feed_key, edition, fare_version, …)` 为键，与静态/实时表并存且互不影响。
+
+## 示例与人工期望
+
+`dist/fare-v1.zip`、`dist/fare-v2.zip` 与三个整包拒收样本由
+`tools/build_fare_fixtures.py` 生成，批次在 `dist/fare-batch.csv`。
+`docs/FARE_WALKTHROUGH.md` 记录 `tools/fare_walkthrough.py` 的真实输出：手工逐段
+账与引擎逐字段比对、独立极简状态机二次复算、拒收见证、版本冲突、v1/v2 隔离与
+重开库逐字节复算。

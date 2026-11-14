@@ -1,0 +1,53 @@
+[
+  {
+    "product_id": "P_STD",
+    "amount": "3.00",
+    "currency": "CNY",
+    "validity_seconds": 3600,
+    "max_legs": 2,
+    "covers": [
+      "P_STD"
+    ]
+  },
+  {
+    "product_id": "P_LONG",
+    "amount": "5.00",
+    "currency": "CNY",
+    "validity_seconds": 7200,
+    "max_legs": 2,
+    "covers": [
+      "P_STD",
+      "P_LONG"
+    ]
+  },
+  {
+    "product_id": "P_T",
+    "amount": "2.00",
+    "currency": "CNY",
+    "validity_seconds": 3600,
+    "max_legs": 1,
+    "covers": [
+      "P_T"
+    ]
+  },
+  {
+    "product_id": "P_FREE",
+    "amount": "0.00",
+    "currency": "CNY",
+    "validity_seconds": 1800,
+    "max_legs": 1,
+    "covers": [
+      "P_FREE"
+    ]
+  },
+  {
+    "product_id": "P_JPY",
+    "amount": "250",
+    "currency": "JPY",
+    "validity_seconds": 3600,
+    "max_legs": 2,
+    "covers": [
+      "P_JPY"
+    ]
+  }
+]

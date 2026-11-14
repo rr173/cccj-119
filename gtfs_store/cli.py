@@ -167,6 +167,154 @@ def cmd_list(args, store: Store) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Offline fare clearing
+# ---------------------------------------------------------------------------
+
+def _fares(store: Store):
+    from .fares import FareStore
+    return FareStore(store)
+
+
+def cmd_fare_install(args, store: Store) -> int:
+    result = _fares(store).fare_install(args.package)
+    if result.get("resend"):
+        if result["status"] == "ready":
+            plain = ["resend fare_package=%s/%s/%s status=%s; fare tables unchanged"
+                     % (result["feed_key"], result["edition"], result["fare_version"],
+                        result["status"]),
+                     "content sha256=%s" % result["content_sha256"]]
+        else:
+            plain = ["resend of previously REJECTED fare_package=%s/%s/%s (%d problem(s))"
+                     % (result["feed_key"], result["edition"], result["fare_version"],
+                        len(result.get("problems", [])))]
+        code = 0 if result["status"] == "ready" else 1
+        _out(result, args.json, plain)
+        return code
+    if result["status"] == "ready":
+        _out(result, args.json, [
+            "installed fare_package=%s/%s/%s status=ready currencies=%s"
+            % (result["feed_key"], result["edition"], result["fare_version"],
+               ",".join(result["currencies"])),
+            "content sha256=%s" % result["content_sha256"],
+            "stop_zones=%d products=%d rules=%d"
+            % (result["stop_zone_rows"], result["products"], result["rules"]),
+        ])
+        return 0
+    _out(result, args.json, [
+        "REJECTED fare_package=%s/%s/%s (%d problem(s)); no fare version made available"
+        % (result["feed_key"], result["edition"], result["fare_version"],
+           len(result["problems"]))])
+    for problem in result["problems"]:
+        print("  %s | %s | %s | %s"
+              % (problem.get("file") or "-", problem.get("record_id") or "-",
+                 problem.get("field") or "-", problem["message"]))
+    return 1
+
+
+def cmd_fare_packages(args, store: Store) -> int:
+    rows = _fares(store).fare_packages(args.feed_key, args.edition)
+    plain = ["%s/%s/%s status=%s currencies=%s"
+             % (r["feed_key"], r["edition"], r["fare_version"], r["status"],
+                r["currency_set"] or "-") for r in rows] or ["no fare packages installed"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_fare_products(args, store: Store) -> int:
+    rows = _fares(store).fare_products(args.feed_key, args.edition, args.fare_version)
+    plain = ["%s %s %s validity=%ss max_legs=%d covers=%s"
+             % (r["fare_version"], r["product_id"], r["amount_text"],
+                r["validity_seconds"], r["max_legs"],
+                ",".join(r["covers"]) if r["covers"] else "-") for r in rows] \
+        or ["no products found"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_fare_rules(args, store: Store) -> int:
+    rows = _fares(store).fare_rules(args.feed_key, args.edition, args.fare_version)
+    plain = ["%s prio=%d route=%s from=%s to=%s -> %s"
+             % (r["rule_id"], r["priority"], r["route_id"] or "*",
+                r["from_zone"] or "*", r["to_zone"] or "*", r["product_id"])
+            for r in rows] or ["no rules found"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_fare_zones(args, store: Store) -> int:
+    rows = _fares(store).fare_stop_zones(args.feed_key, args.edition, args.fare_version)
+    plain = ["%s -> %s" % (r["stop_id"], r["zone_id"]) for r in rows] \
+        or ["no stop/zone mappings found"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_fare_rejections(args, store: Store) -> int:
+    rows = _fares(store).fare_rejections(args.feed_key, args.edition, args.fare_version)
+    plain = ["%s seq=%d %s | %s | %s | %s"
+             % (r["fare_version"], r["seq"], r["file_name"] or "-",
+                r["record_id"] or "-", r["field"] or "-", r["message"])
+            for r in rows] or ["no fare rejections recorded"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def _leg_plain(leg: dict[str, Any]) -> list[str]:
+    rule = leg["matched_rule_id"] or "-"
+    currency = leg["base_product"]["currency"]
+    if leg["paid_product_id"] == leg["base_product_id"] and leg["source_leg_index"] == leg["leg_index"]:
+        source = "(bought here)"
+    else:
+        source = "leg %d" % leg["source_leg_index"]
+    reasons = ",".join(leg["purchase_reasons"]) if leg["purchase_reasons"] else "free_transfer"
+    return [
+        "  leg %d route=%s trip=%s board=%s(seq=%d,%s) alight=%s(seq=%d,%s) rule=%s"
+        % (leg["leg_index"], leg["route_id"], leg["trip_id"],
+           leg["board_stop_id"], leg["board_sequence"], leg["board_zone"],
+           leg["alight_stop_id"], leg["alight_sequence"], leg["alight_zone"], rule),
+        "    base_product=%s paid_product=%s source=%s charge=%s %s expires@%d used_legs=%d %s"
+        % (leg["base_product_id"], leg["paid_product_id"], source, leg["charge_text"],
+           currency, leg["ticket_expires_utc"], leg["used_legs_after"], reasons),
+    ]
+
+
+def cmd_fare_settle(args, store: Store) -> int:
+    batch = Path(args.batch).read_bytes()
+    result = _fares(store).settle(args.feed_key, args.edition, args.fare_version, batch)
+    plain = ["settle against %s/%s/%s content=%s rows=%d"
+             % (result["feed_key"], result["edition"], result["fare_version"],
+                result["content_sha256"][:12], result["batch_rows"])]
+    for problem in result["batch_problems"]:
+        plain.append("  BATCH line=%s: %s" % (problem.get("input_line"), problem["message"]))
+    for journey in result["journeys"]:
+        if journey["status"] == "settled":
+            plain.append("journey %s SETTLED currency=%s total=%s"
+                         % (journey["journey_id"], journey["currency"], journey["total_text"]))
+            for leg in journey["legs"]:
+                plain.extend(_leg_plain(leg))
+        else:
+            plain.append("journey %s REJECTED (no partial total):" % journey["journey_id"])
+            for reason in journey["reasons"]:
+                where = reason.get("input_line")
+                leg_index = reason.get("leg_index")
+                plain.append("  line=%s leg=%s %s: %s"
+                             % (where if where is not None else "-",
+                                leg_index if leg_index is not None else "-",
+                                reason["code"], reason["message"]))
+    totals = result["summary"]["by_currency"]
+    plain.append("summary: settled=%d rejected=%d"
+                 % (result["summary"]["settled"], result["summary"]["rejected"]))
+    for currency, entry in sorted(totals.items()):
+        plain.append("  %s total=%s across %d journey(s)"
+                     % (currency, entry["text"], entry["journeys"]))
+    # Per-journey business failures are a normal batch outcome (exit 0);
+    # batch-level parse problems make the run unusable (exit 1).
+    code = 1 if result["batch_problems"] else 0
+    _out(result, args.json, plain)
+    return code
+
+
+# ---------------------------------------------------------------------------
 # Realtime channel (needs gtfs-realtime-bindings; imported lazily)
 # ---------------------------------------------------------------------------
 
@@ -372,6 +520,47 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("list", help="list stored feeds and editions")
     p.set_defaults(func=cmd_list)
+
+    p = sub.add_parser("fare-install",
+                       help="validate and atomically install a fare rule package")
+    p.add_argument("--package", required=True, help="path to the fare .zip package")
+    p.set_defaults(func=cmd_fare_install)
+
+    p = sub.add_parser("fare-packages", help="list installed fare packages")
+    p.add_argument("--feed-key")
+    p.add_argument("--edition")
+    p.set_defaults(func=cmd_fare_packages)
+
+    p = sub.add_parser("fare-products", help="read fare products and coverage sets")
+    p.add_argument("--feed-key", required=True)
+    p.add_argument("--edition", required=True)
+    p.add_argument("--fare-version", required=True)
+    p.set_defaults(func=cmd_fare_products)
+
+    p = sub.add_parser("fare-rules", help="read selection rules of a fare package")
+    p.add_argument("--feed-key", required=True)
+    p.add_argument("--edition", required=True)
+    p.add_argument("--fare-version", required=True)
+    p.set_defaults(func=cmd_fare_rules)
+
+    p = sub.add_parser("fare-zones", help="read stop-to-zone mappings of a fare package")
+    p.add_argument("--feed-key", required=True)
+    p.add_argument("--edition", required=True)
+    p.add_argument("--fare-version", required=True)
+    p.set_defaults(func=cmd_fare_zones)
+
+    p = sub.add_parser("fare-rejections", help="show fare package refusal reasons")
+    p.add_argument("--feed-key", required=True)
+    p.add_argument("--edition", required=True)
+    p.add_argument("--fare-version")
+    p.set_defaults(func=cmd_fare_rejections)
+
+    p = sub.add_parser("fare-settle", help="clear one journey batch CSV against a fare package")
+    p.add_argument("--feed-key", required=True)
+    p.add_argument("--edition", required=True)
+    p.add_argument("--fare-version", required=True)
+    p.add_argument("--batch", required=True, help="CSV file of journey legs")
+    p.set_defaults(func=cmd_fare_settle)
 
     p = sub.add_parser("rt-register",
                        help="bind a realtime source to one ready edition (permanent)")

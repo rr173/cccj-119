@@ -1,0 +1,50 @@
+[
+  {
+    "rule_id": "r_any",
+    "priority": 1,
+    "route_id": "R1",
+    "from_zone": null,
+    "to_zone": null,
+    "product_id": "P_STD"
+  },
+  {
+    "rule_id": "r_r2",
+    "priority": 10,
+    "route_id": "R2",
+    "from_zone": null,
+    "to_zone": null,
+    "product_id": "P_LONG"
+  },
+  {
+    "rule_id": "r_r4",
+    "priority": 10,
+    "route_id": "R4",
+    "from_zone": null,
+    "to_zone": null,
+    "product_id": "P_LONG"
+  },
+  {
+    "rule_id": "r_q",
+    "priority": 15,
+    "route_id": "R1",
+    "from_zone": "ZB",
+    "to_zone": "ZC",
+    "product_id": "P_T"
+  },
+  {
+    "rule_id": "r_r5",
+    "priority": 20,
+    "route_id": "R5",
+    "from_zone": null,
+    "to_zone": null,
+    "product_id": "P_JPY"
+  },
+  {
+    "rule_id": "r_free",
+    "priority": 20,
+    "route_id": "R3",
+    "from_zone": "ZA",
+    "to_zone": "ZB",
+    "product_id": "P_FREE"
+  }
+]

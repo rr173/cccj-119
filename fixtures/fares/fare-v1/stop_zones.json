@@ -1,0 +1,34 @@
+[
+  {
+    "stop_id": "007",
+    "zone_id": "ZA"
+  },
+  {
+    "stop_id": "7",
+    "zone_id": "ZD"
+  },
+  {
+    "stop_id": "S2",
+    "zone_id": "ZB"
+  },
+  {
+    "stop_id": "S3",
+    "zone_id": "ZC"
+  },
+  {
+    "stop_id": "S4",
+    "zone_id": "ZC"
+  },
+  {
+    "stop_id": "S5",
+    "zone_id": "ZA"
+  },
+  {
+    "stop_id": "S6",
+    "zone_id": "ZB"
+  },
+  {
+    "stop_id": "S8",
+    "zone_id": "ZE"
+  }
+]
