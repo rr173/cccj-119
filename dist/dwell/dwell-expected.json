@@ -1,0 +1,432 @@
+{
+  "distance_audit": {
+    "R1": {
+      "R1-b": 80.0,
+      "R1-c": 0.0,
+      "R1-d": 60.0,
+      "R1-e": 150.0,
+      "R1-f": 320.0
+    },
+    "R10-OK": {
+      "G1": 80.0,
+      "G2": 0.0,
+      "G3": 40.0
+    },
+    "R11-V2": {
+      "V1": 80.0,
+      "V2": 0.0,
+      "V3": 40.0
+    },
+    "R15": {
+      "R15-a": 60.0,
+      "R15-b": 0.0,
+      "R15-c": 40.0,
+      "R15-d": 60.0,
+      "R15-e": 0.0,
+      "R15-f": 50.0,
+      "R15-g": 330.0
+    },
+    "R2": {
+      "R2-b": 90.0,
+      "R2-c": 60.0,
+      "R2-d": 20.0,
+      "R2-e": 180.0,
+      "R2-f": 330.0,
+      "R2-g": 40.0,
+      "R2-h": 0.0,
+      "R2-i": 30.0,
+      "R2-j": 200.0,
+      "R2-k": 300.0
+    },
+    "R3": {},
+    "R4": {
+      "R4-a": 60.0,
+      "R4-b": 0.0,
+      "R4-c": 330.0,
+      "R4-d": 60.0,
+      "R4-e": 0.0,
+      "R4-f": 60.0
+    },
+    "R5": {
+      "R5-a": 80.0,
+      "R5-b": 0.0,
+      "R5-c": 50.0
+    },
+    "R6": {
+      "R6-a": 100.0756,
+      "R6-b": 116.7548,
+      "R6-c": 112.307,
+      "R6-d": 0.0
+    },
+    "R7": {
+      "R7-a": 0.0,
+      "R7-b": 97.0052,
+      "R7-c": 0.0
+    },
+    "R8": {
+      "R8-a": 40.0,
+      "R8-b": 0.0,
+      "R8-c": 330.0,
+      "R8-d": 40.0,
+      "R8-e": 0.0,
+      "R8-f": 50.0
+    },
+    "R9": {
+      "R9-b": 80.0,
+      "R9-c": 0.0,
+      "R9-d": 60.0,
+      "R9-e": 150.0,
+      "R9-f": 320.0
+    }
+  },
+  "files": {
+    "large": {
+      "brute_force_checks": 16000,
+      "candidate_stops": 400,
+      "dwell": {
+        "arrival_utc": 10000,
+        "confirmed_utc": 10060,
+        "end_reason": "open_ended",
+        "stop_id": "L0200",
+        "support_points": 40
+      },
+      "samples": 40
+    }
+  },
+  "params": {
+    "enter_m": 120,
+    "exit_m": 250,
+    "max_gap_s": 120,
+    "min_dwell_s": 60
+  },
+  "runs": {
+    "R1": {
+      "dwells": [
+        {
+          "arrival_utc": 1020,
+          "confirmed_utc": 1080,
+          "departure_utc": 1140,
+          "end_reason": "observed_exit",
+          "first_outside_id": "R1-f",
+          "last_observed_utc": 1110,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "R1-b",
+            "R1-c",
+            "R1-d",
+            "R1-e"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_A"
+    },
+    "R10-BADCOORD": {
+      "edition": "v1",
+      "fails": [
+        "bad_coordinate"
+      ],
+      "trip": "TRIP_A"
+    },
+    "R10-DUPID": {
+      "edition": "v1",
+      "fails": [
+        "duplicate_sample_id"
+      ],
+      "trip": "TRIP_A"
+    },
+    "R10-DUPTS": {
+      "edition": "v1",
+      "fails": [
+        "duplicate_timestamp"
+      ],
+      "trip": "TRIP_A"
+    },
+    "R10-OK": {
+      "dwells": [
+        {
+          "arrival_utc": 9000,
+          "confirmed_utc": 9060,
+          "departure_utc": null,
+          "end_reason": "open_ended",
+          "first_outside_id": null,
+          "last_observed_utc": 9090,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "G1",
+            "G2",
+            "G3"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_A"
+    },
+    "R11-V2": {
+      "dwells": [
+        {
+          "arrival_utc": 9500,
+          "confirmed_utc": 9560,
+          "departure_utc": null,
+          "end_reason": "open_ended",
+          "first_outside_id": null,
+          "last_observed_utc": 9590,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "V1",
+            "V2",
+            "V3"
+          ]
+        }
+      ],
+      "edition": "v2",
+      "trip": "TRIP_EXTRA_V2"
+    },
+    "R12-BADSTOP": {
+      "bad_stop": "CHARLIE",
+      "edition": "v3-bad-coords",
+      "fails": [
+        "candidate_stops"
+      ],
+      "trip": "TRIP_C"
+    },
+    "R13-NOBIND": {
+      "edition": null,
+      "fails": [
+        "unregistered_run"
+      ],
+      "trip": null
+    },
+    "R14-EMPTY": {
+      "edition": "v1",
+      "fails": [
+        "no_samples"
+      ],
+      "trip": "TRIP_A"
+    },
+    "R15": {
+      "dwells": [
+        {
+          "arrival_utc": 10000,
+          "confirmed_utc": 10060,
+          "departure_utc": null,
+          "end_reason": "gap_truncated",
+          "first_outside_id": null,
+          "last_observed_utc": 10100,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "R15-a",
+            "R15-b",
+            "R15-c"
+          ]
+        },
+        {
+          "arrival_utc": 10500,
+          "confirmed_utc": 10560,
+          "departure_utc": 10640,
+          "end_reason": "observed_exit",
+          "first_outside_id": "R15-g",
+          "last_observed_utc": 10600,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "R15-d",
+            "R15-e",
+            "R15-f"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_A"
+    },
+    "R2": {
+      "dwells": [
+        {
+          "arrival_utc": 2020,
+          "confirmed_utc": 2080,
+          "departure_utc": 2140,
+          "end_reason": "observed_exit",
+          "first_outside_id": "R2-f",
+          "last_observed_utc": 2110,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "R2-b",
+            "R2-c",
+            "R2-d",
+            "R2-e"
+          ]
+        },
+        {
+          "arrival_utc": 2170,
+          "confirmed_utc": 2240,
+          "departure_utc": 2300,
+          "end_reason": "observed_exit",
+          "first_outside_id": "R2-k",
+          "last_observed_utc": 2270,
+          "stop_id": "BRAVO",
+          "support_ids": [
+            "R2-g",
+            "R2-h",
+            "R2-i",
+            "R2-j"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_AB"
+    },
+    "R3": {
+      "dwells": [],
+      "edition": "v1",
+      "trip": "TRIP_A"
+    },
+    "R4": {
+      "dwells": [
+        {
+          "arrival_utc": 4000,
+          "confirmed_utc": 4060,
+          "departure_utc": 4120,
+          "end_reason": "observed_exit",
+          "first_outside_id": "R4-c",
+          "last_observed_utc": 4060,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "R4-a",
+            "R4-b"
+          ]
+        },
+        {
+          "arrival_utc": 4240,
+          "confirmed_utc": 4300,
+          "departure_utc": null,
+          "end_reason": "gap_truncated",
+          "first_outside_id": null,
+          "last_observed_utc": 4420,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "R4-d",
+            "R4-e",
+            "R4-f"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_AB"
+    },
+    "R5": {
+      "dwells": [
+        {
+          "arrival_utc": 5000,
+          "confirmed_utc": 5060,
+          "departure_utc": null,
+          "end_reason": "open_ended",
+          "first_outside_id": null,
+          "last_observed_utc": 5090,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "R5-a",
+            "R5-b",
+            "R5-c"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_A"
+    },
+    "R6": {
+      "dwells": [
+        {
+          "arrival_utc": 6000,
+          "confirmed_utc": 6060,
+          "departure_utc": null,
+          "end_reason": "open_ended",
+          "first_outside_id": null,
+          "last_observed_utc": 6180,
+          "stop_id": "ANTI",
+          "support_ids": [
+            "R6-a",
+            "R6-b",
+            "R6-c",
+            "R6-d"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_ANTI"
+    },
+    "R7": {
+      "dwells": [
+        {
+          "arrival_utc": 7000,
+          "confirmed_utc": 7060,
+          "departure_utc": null,
+          "end_reason": "open_ended",
+          "first_outside_id": null,
+          "last_observed_utc": 7120,
+          "stop_id": "POLAR",
+          "support_ids": [
+            "R7-a",
+            "R7-b",
+            "R7-c"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_POLAR"
+    },
+    "R8": {
+      "dwells": [
+        {
+          "arrival_utc": 8000,
+          "confirmed_utc": 8060,
+          "departure_utc": 8100,
+          "end_reason": "observed_exit",
+          "first_outside_id": "R8-c",
+          "last_observed_utc": 8060,
+          "stop_id": "007",
+          "support_ids": [
+            "R8-a",
+            "R8-b"
+          ]
+        },
+        {
+          "arrival_utc": 8160,
+          "confirmed_utc": 8220,
+          "departure_utc": null,
+          "end_reason": "open_ended",
+          "first_outside_id": null,
+          "last_observed_utc": 8260,
+          "stop_id": "7",
+          "support_ids": [
+            "R8-d",
+            "R8-e",
+            "R8-f"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "trip": "TRIP_ID"
+    },
+    "R9": {
+      "dwells": [
+        {
+          "arrival_utc": 1020,
+          "confirmed_utc": 1080,
+          "departure_utc": 1140,
+          "end_reason": "observed_exit",
+          "first_outside_id": "R9-f",
+          "last_observed_utc": 1110,
+          "stop_id": "ALPHA",
+          "support_ids": [
+            "R9-b",
+            "R9-c",
+            "R9-d",
+            "R9-e"
+          ]
+        }
+      ],
+      "edition": "v1",
+      "shuffled_source_lines": true,
+      "trip": "TRIP_A"
+    }
+  }
+}

@@ -13,10 +13,12 @@
 时区数据来自系统 IANA 数据库（`zoneinfo`）。
 
 ```
-python3 -I -m unittest discover -s tests -v     # 全部测试（含票价清分）
+python3 -I -m unittest discover -s tests -v     # 全部测试（含票价清分与 GPS 驻留）
 python3 -I tools/build_fixtures.py              # 重新生成示例包
 python3 -I tools/build_fare_fixtures.py         # 重新生成票价规则包与清分批次
 python3 -I tools/fare_walkthrough.py            # 票价清分演练（手工账逐段核对）
+python3 -I tools/build_dwell_fixtures.py        # 重新生成 GPS 驻留静态包与采样
+python3 -I tools/dwell_walkthrough.py           # GPS 驻留演练（逐条证据与崩溃重开）
 ```
 
 ## 终端入口
@@ -292,6 +294,131 @@ A/B 开局后仅替换 A、停开后撤回、完整包清空、撤旧换号指�
 旧值与显式零读回、坏站序被拒后修正、旧包在实体消失后再次到达、同戳改包、恰好
 到期但来源仍有心跳、两个来源同号互不影响、两名接收者争用同一来源（两种串行结局）
 以及重开进程后的状态核对。
+
+# 离线 GPS 驻留加工（GPS dwell processing）
+
+在静态班表之上新增**离线** GPS 驻留加工：读采样文件，产出能逐条回查原始采样点
+的**站点驻留事实**，供整理实际运行资料。它不匹配道路、不推断路线、不计算预计
+到站，也不统计乘客或票款；全程仅 Python 标准库 + SQLite，是与静态/实时/票价
+并列的独立模块（`gtfs_store/dwell.py`），不改动旧模块行为。
+
+```
+python3 -I tools/build_dwell_fixtures.py     # 生成手工设计的静态包与采样
+python3 -I tools/dwell_walkthrough.py        # 端到端演练（输出即 docs/DWELL_WALKTHROUGH.md）
+python3 -I -m unittest discover -s tests -v  # 含 37 条驻留专项测试
+```
+
+## 终端入口（驻留子命令）
+
+```
+gtfs-store [--db PATH] [--json] dwell-process  --samples S.csv --bindings B.csv \
+               --enter-m E --exit-m X --min-dwell-s D --max-gap-s G
+gtfs-store [--db PATH] [--json] dwell-jobs
+gtfs-store [--db PATH] [--json] dwell-job      --job-id J
+gtfs-store [--db PATH] [--json] dwell-run      --job-id J --run-id R
+gtfs-store [--db PATH] [--json] dwell-dwells   --job-id J [--run-id R] [--stop-id S]
+gtfs-store [--db PATH] [--json] dwell-evidence --job-id J --dwell-seq N
+```
+
+输入两个 CSV（表头必须逐字一致，UTF-8，支持 BOM 与 RFC4180 引号）：
+
+- 绑定 `run_id,feed_key,edition,trip_id`：为每个 run 指定它可关联的静态版本与
+  trip；不同 run 可以使用不同静态版本。重复绑定、空字段直接文件级失败。
+- 采样 `run_id,sample_id,observed_utc,lat,lon`：`sample_id` 为 run 内唯一非空
+  字符串；时间为整数 UTC 秒；WGS84 度，必须有限，经度 [-180,180]、纬度 [-90,90]。
+
+### 从输入文件到证据的一组可执行命令
+
+```
+# 1) 静态版本入库（普通静态通道，坐标缺失的包仍可入库，由驻留层拦截）
+for e in v1 v2 v3-bad-coords; do
+  gtfs-store --db gtfs.db load --feed-key dwell --edition $e \
+    --package dist/dwell/dwell-$e.zip
+done
+
+# 2) 一次完整加工（每次作业独立生成，不追加上次驻留）
+gtfs-store --db gtfs.db dwell-process \
+  --samples dist/dwell/samples.csv --bindings dist/dwell/bindings.csv \
+  --enter-m 120 --exit-m 250 --min-dwell-s 60 --max-gap-s 120
+
+# 3) 按 run / 站点查驻留明细
+gtfs-store --db gtfs.db dwell-dwells --job-id 1 --run-id R2
+gtfs-store --db gtfs.db dwell-dwells --job-id 1 --stop-id 007
+
+# 4) 展开一条驻留依据的原始采样值、精确距离与来源文件行
+gtfs-store --db gtfs.db dwell-evidence --job-id 1 --dwell-seq 1
+```
+
+## 候选站点与身份
+
+候选站从**实际静态表**取该 trip 经过的**不同 stop_id** 及坐标（`stop_times`
+JOIN `stops`，重复经过同一站只保留一个空间候选，不猜第几次途经的计划站序）。
+任一候选坐标缺失、非有限或越界，**整个 run 不可加工**，诊断点名是哪个站
+（如 `candidate stop 'CHARLIE' ... has missing, non-finite or out-of-range
+coordinates`）。站点编号是不透明字符串，`007` 与 `7` 始终是两个站。
+
+## 距离与空间索引
+
+距离统一 Haversine，地球半径 6371008.8 m，**比较不做米级取整**；两个半径边界
+均为包含关系（`<=enter_m` 发起、`<=exit_m` 延续）。每个点只在所属 run 的候选
+站中查找，**不做点×站笛卡尔积**：
+
+- 生产路径先经可查询的均匀经纬网格空间索引（按 enter 半径保守取盒，经度在
+  0..360 归一化网格上折叠，跨 180 度经线两侧都能扫到；纬度盒触及极点时扫描
+  全部已占用经度带），再对盒内候选做精确 Haversine；
+- 最近者中选，完全同距按 stop_id 的 Unicode 码点顺序，不靠输入顺序；
+- 每次作业在 `dwell_job_runs.index_json` 留下索引说明：网格大小、占用单元、
+  **精确候选检查次数 `candidate_checks` 与单元扫描数 `cell_scans`**。400 候选、
+  40 点的大资料只做 9 次精确检查，而笛卡尔积需要 16000 次；测试与演练另用
+  **不走生产索引的全站穷举**逐点复核，候选完全一致。
+
+## 可解释的驻留状态机
+
+1. 空闲点找到 enter 内候选即开始**待确认**串；后续点连续选中同一候选、且每对
+   相邻点时间差 `<=max_gap_s`，直到 `当前时间-第一点时间 >= min_dwell_s` 才确认；
+   到达时间**回填为串内第一点时间**，不是确认时刻。
+2. 待确认期间无候选或换候选，旧串作废，新点可开自己的串；短暂掠过不输出。
+3. 确认后**锁定当前站**：只要距该站 `<=exit_m` 就延续，即使点已超出 enter_m 或
+   附近另一站更近，也不改站、不重算到达。首次 `>exit_m` 结束，离开时间取此前
+   最后一个内点时刻，原因记 `observed_exit`，并保存最后内点与首个外点的
+   sample_id；该外点可以开启另一站的待确认串，但**不能同时作为两个站的支持点**。
+4. 相邻时间差 `>max_gap_s` 先断开当前过程：已确认驻留以最后内点为最后观测时刻，
+   原因 `gap_truncated`，离开时间为空；缺口后从空闲重新处理，不拼接停机前后。
+5. 文件结束时仍在站内记 `open_ended`，离开时间同样为空；未达时长的待确认串
+   不输出。`==max_gap_s` 仍连续，`==min_dwell_s` 即确认。
+
+## 失败隔离与文件级失败
+
+一个 run 的坏坐标、重复 sample_id、同一时间两点（即使坐标相同也拒绝整 run，
+不用输入顺序打破冲突）、未登记绑定、无采样行，都只让该 run 失败并给出指回
+**原文件物理行**的诊断，同文件其他合法 run 照常出驻留。缺少 run_id（无法归属）
+或文件无法可靠解析（坏 CSV、表头不符）属于**文件级失败**，不产生任何作业。
+
+## 落库、原子性与可回查
+
+每次作业按完整输入独立生成，结果在**一个事务**里落库，作业对外可查之前记录与
+证据必须一起提交；异常退出回滚，不会暴露缺证据的半条驻留（环境变量
+`GTFS_FAULT_DWELL_AFTER_RUNS=N` 可复现中途崩溃）。失败重跑只是新建作业，不接续
+游标、不实时更新旧作业。新表（全部带 `job_id`，与旧表并存）：
+
+- `dwell_jobs`（来源文件与绑定的 SHA-256、四个参数、作业计数、创建时刻）
+- `dwell_bindings`（本次实际使用的绑定及绑定来源行）
+- `dwell_job_runs`（每 run 状态、诊断 JSON、索引参与说明 JSON）
+- `dwell_samples`（全部原始采样值与来源行，含失败 run 的坏行）
+- `dwell_facts`（run、静态版本、stop_id/原站名、到达/确认/最后观测/可空离开
+  时刻、结束原因、支持点数、首尾证据 sample_id）
+- `dwell_evidence`（逐点原始 lat/lon、来源行、精确距离与角色
+  `arrival/confirm/inside/last_inside/first_outside`；一个点兼多个角色时每角色一行）
+
+## 手工场景与独立复核
+
+`dist/dwell/samples.csv` 与 `dwell-expected.json` 手工设计并记录期望，覆盖：
+正常到站后离开；两站进入圈相交时先按最近选站、确认后不因另一站更近而跳站；
+未满时长离开；恰到确认与间隔上限（含活动驻留上 `==max_gap_s` 连续、`+1` 截断）；
+缺口前后分别成段；文件结束未离站；180 度经线两侧相邻与近极点候选；`007` 与 `7`
+并存；乱序还原后结果不变；同批坏 run 与好 run 隔离。测试先用全站穷举核对候选，
+再独立按手写时间线逐条比对状态、时刻、支持点与来源行，而非只核对条数。
+`docs/DWELL_WALKTHROUGH.md` 是上述演练的真实转录。
 
 # 离线票价清分管道（Fare clearing）
 

@@ -1,0 +1,8 @@
+route_id,service_id,trip_id,trip_headsign
+R1,WK,TRIP_A,Loop
+R1,WK,TRIP_AB,Loop
+R1,WK,TRIP_C,Loop
+R1,WK,TRIP_ID,Loop
+R1,WK,TRIP_ANTI,Loop
+R1,WK,TRIP_POLAR,Loop
+R1,WK,TRIP_EXTRA_V2,Loop

@@ -1,0 +1,8 @@
+stop_id,stop_name,stop_lat,stop_lon
+ALPHA,Alpha Square,52.5200000,13.4050000
+BRAVO,Bravo Gate,52.5217986,13.4050000
+CHARLIE,Charlie Corner,52.5100000,13.4200000
+007,Station Seven,52.5300000,13.4100000
+7,Station Seven Pseudo Dup,52.5312590,13.4100000
+ANTI,Date Line Stop,0.0000000,179.9990000
+POLAR,Polar Platform,89.9900000,45.0000000

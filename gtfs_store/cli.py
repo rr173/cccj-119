@@ -315,6 +315,180 @@ def cmd_fare_settle(args, store: Store) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Offline GPS dwell processing
+# ---------------------------------------------------------------------------
+
+def _dwell(store: Store):
+    from .dwell import DwellStore
+    return DwellStore(store)
+
+
+def _dwell_jsonable(result: dict) -> dict:
+    """Strip dataclass instances from a dwell process result for --json."""
+    payload = {k: v for k, v in result.items() if k != "runs"}
+    runs = []
+    for run in result["runs"]:
+        item = {k: v for k, v in run.items()
+                if k not in ("dwells", "samples", "rows", "binding")}
+        item["binding"] = run.get("binding")
+        item["dwells"] = [
+            {"stop_id": f.stop["stop_id"], "end_reason": f.end_reason,
+             "arrival_utc": f.arrival_sample.observed_utc,
+             "confirmed_utc": f.confirm_sample.observed_utc,
+             "last_observed_utc": f.last_observed_sample.observed_utc,
+             "departure_utc": (f.departure_sample.observed_utc
+                               if f.departure_sample else None),
+             "support_points": len(f.samples),
+             "first_sample_id": f.arrival_sample.sample_id,
+             "last_inside_sample_id": f.last_observed_sample.sample_id,
+             "first_outside_sample_id": (f.departure_sample.sample_id
+                                         if f.departure_sample else None)}
+            for f in run["dwells"]]
+        runs.append(item)
+    payload["runs"] = runs
+    return payload
+
+
+def cmd_dwell_process(args, store: Store) -> int:
+    from .dwell import DwellParams, DwellStore
+    params = DwellParams(args.enter_m, args.exit_m, args.min_dwell_s, args.max_gap_s)
+    result = DwellStore(store).process(args.samples, args.bindings, params)
+    plain = [
+        "dwell job=%d source=%s sha256=%s"
+        % (result["job_id"], result["source_file"], result["source_sha256"][:16]),
+        "params enter_m=%d exit_m=%d min_dwell_s=%d max_gap_s=%d"
+        % (args.enter_m, args.exit_m, args.min_dwell_s, args.max_gap_s),
+        "runs total=%d processed=%d failed=%d dwell_facts=%d"
+        % (result["total_runs"], result["processed_runs"],
+           result["failed_runs"], result["dwell_facts"]),
+    ]
+    for run in result["runs"]:
+        if run["status"] == "failed":
+            plain.append("  run=%s FAILED" % run["run_id"])
+            for diag in run["diagnostics"]:
+                plain.append("    line=%s %s: %s"
+                             % (diag.get("source_line") if diag.get("source_line") is not None else "-",
+                                diag["code"], diag["message"]))
+        else:
+            index = run["index"]
+            plain.append(
+                "  run=%s OK dwells=%d indexed_stops=%d candidate_checks=%d cell_scans=%d"
+                % (run["run_id"], len(run["dwells"]), index["indexed_stops"],
+                   index["candidate_checks"], index["cell_scans"]))
+    _out(_dwell_jsonable(result) if args.json else result, args.json, plain)
+    return 0
+
+
+def cmd_dwell_jobs(args, store: Store) -> int:
+    rows = _dwell(store).jobs()
+    plain = ["job=%d runs=%d/%d failed=%d dwells=%d source=%s created=%s"
+             % (r["job_id"], r["processed_runs"], r["total_runs"], r["failed_runs"],
+                r["dwell_facts"], r["source_file"], r["created_at"])
+             for r in rows] or ["no dwell jobs recorded"]
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_dwell_job(args, store: Store) -> int:
+    detail = _dwell(store).job(args.job_id)
+    plain = [
+        "job=%d source=%s enter_m=%d exit_m=%d min_dwell_s=%d max_gap_s=%d"
+        % (detail["job_id"], detail["source_file"], detail["enter_m"],
+           detail["exit_m"], detail["min_dwell_s"], detail["max_gap_s"]),
+        "runs total=%d processed=%d failed=%d dwell_facts=%d"
+        % (detail["total_runs"], detail["processed_runs"],
+           detail["failed_runs"], detail["dwell_facts"]),
+    ]
+    for binding in detail["bindings"]:
+        plain.append("  bind run=%s -> %s/%s trip=%s (line %d)"
+                     % (binding["run_id"], binding["feed_key"], binding["edition"],
+                        binding["trip_id"], binding["source_line"]))
+    for run in detail["runs"]:
+        plain.append("  run=%s status=%s samples=%d dwells=%d"
+                     % (run["run_id"], run["status"], run["sample_rows"],
+                        run["dwell_count"]))
+    _out(detail, args.json, plain)
+    return 0
+
+
+def cmd_dwell_run(args, store: Store) -> int:
+    detail = _dwell(store).run_detail(args.job_id, args.run_id)
+    plain = ["job=%d run=%s status=%s samples=%d dwells=%d"
+             % (args.job_id, args.run_id, detail["status"],
+                len(detail["samples"]), len(detail["dwells"]))]
+    if detail["index"]:
+        idx = detail["index"]
+        plain.append("  index %s cell_deg=%.8f cells=%d indexed_stops=%d "
+                     "candidate_checks=%d cell_scans=%d antimeridian_safe=%s pole_safe=%s"
+                     % (idx["index"], idx["cell_size_degrees"], idx["occupied_cells"],
+                        idx["indexed_stops"], idx["candidate_checks"], idx["cell_scans"],
+                        idx["antimeridian_safe"], idx["pole_safe"]))
+    for diag in detail["diagnostics"]:
+        plain.append("  DIAG line=%s %s: %s"
+                     % (diag.get("source_line") if diag.get("source_line") is not None else "-",
+                        diag["code"], diag["message"]))
+    for sample in detail["samples"]:
+        plain.append("  sample seq=%d id=%s t=%s lat=%s lon=%s line=%d"
+                     % (sample["seq"], sample["sample_id"] or "-",
+                        sample["observed_utc"] if sample["observed_utc"] is not None else "-",
+                        sample["lat"] if sample["lat"] is not None else "-",
+                        sample["lon"] if sample["lon"] is not None else "-",
+                        sample["source_line"]))
+    for dwell in detail["dwells"]:
+        plain.append(
+            "  dwell_seq=%d stop=%s(%s) arrival=%s confirm=%s last_obs=%s departure=%s "
+            "reason=%s support=%d first=%s last_inside=%s first_outside=%s"
+            % (dwell["dwell_seq"], dwell["stop_id"], dwell["stop_name"],
+               dwell["arrival_utc"], dwell["confirmed_utc"], dwell["last_observed_utc"],
+               dwell["departure_utc"] if dwell["departure_utc"] is not None else "-",
+               dwell["end_reason"], dwell["support_points"], dwell["first_sample_id"],
+               dwell["last_inside_sample_id"],
+               dwell["first_outside_sample_id"] or "-"))
+    _out(detail, args.json, plain)
+    return 0
+
+
+def cmd_dwell_dwells(args, store: Store) -> int:
+    rows = _dwell(store).dwells(args.job_id, args.run_id, args.stop_id)
+    plain = ["job=%d: %d dwell fact(s)" % (args.job_id, len(rows))]
+    for r in rows:
+        plain.append(
+            "  seq=%d run=%s %s/%s stop=%s(%s) arrival=%s confirm=%s last_obs=%s "
+            "departure=%s reason=%s support=%d"
+            % (r["dwell_seq"], r["run_id"], r["feed_key"], r["edition"],
+               r["stop_id"], r["stop_name"], r["arrival_utc"], r["confirmed_utc"],
+               r["last_observed_utc"],
+               r["departure_utc"] if r["departure_utc"] is not None else "-",
+               r["end_reason"], r["support_points"]))
+    _out(rows, args.json, plain)
+    return 0
+
+
+def cmd_dwell_evidence(args, store: Store) -> int:
+    detail = _dwell(store).evidence(args.job_id, args.dwell_seq)
+    fact, points = detail["fact"], detail["evidence"]
+    plain = [
+        "job=%d dwell_seq=%d run=%s stop=%s(%s) %s/%s"
+        % (fact["job_id"], fact["dwell_seq"], fact["run_id"], fact["stop_id"],
+           fact["stop_name"], fact["feed_key"], fact["edition"]),
+        "arrival=%s confirm=%s last_observed=%s departure=%s reason=%s support_points=%d"
+        % (fact["arrival_utc"], fact["confirmed_utc"], fact["last_observed_utc"],
+           fact["departure_utc"] if fact["departure_utc"] is not None else "-",
+           fact["end_reason"], fact["support_points"]),
+        "first_sample=%s last_inside_sample=%s first_outside_sample=%s"
+        % (fact["first_sample_id"], fact["last_inside_sample_id"],
+           fact["first_outside_sample_id"] or "-"),
+    ]
+    for p in points:
+        plain.append("  #%-2d %-13s sample=%-6s t=%-10d lat=%.7f lon=%.7f line=%-3d dist=%.4fm"
+                     % (p["evidence_seq"], p["point_role"], p["sample_id"],
+                        p["observed_utc"], p["lat"], p["lon"], p["source_line"],
+                        p["distance_m"]))
+    _out(detail, args.json, plain)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Realtime channel (needs gtfs-realtime-bindings; imported lazily)
 # ---------------------------------------------------------------------------
 
@@ -598,6 +772,42 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--id", required=True, type=int)
     p.add_argument("--blob", help="write the original message bytes to this path")
     p.set_defaults(func=cmd_rt_reception)
+
+    # Offline GPS dwell processing -------------------------------------
+    p = sub.add_parser("dwell-process",
+                       help="process one GPS sample file with run bindings into dwell facts")
+    p.add_argument("--samples", required=True, help="CSV: run_id,sample_id,observed_utc,lat,lon")
+    p.add_argument("--bindings", required=True,
+                   help="CSV: run_id,feed_key,edition,trip_id")
+    p.add_argument("--enter-m", required=True, type=int, dest="enter_m")
+    p.add_argument("--exit-m", required=True, type=int, dest="exit_m")
+    p.add_argument("--min-dwell-s", required=True, type=int, dest="min_dwell_s")
+    p.add_argument("--max-gap-s", required=True, type=int, dest="max_gap_s")
+    p.set_defaults(func=cmd_dwell_process)
+
+    p = sub.add_parser("dwell-jobs", help="list recorded dwell jobs")
+    p.set_defaults(func=cmd_dwell_jobs)
+
+    p = sub.add_parser("dwell-job", help="show one dwell job: bindings and per-run outcomes")
+    p.add_argument("--job-id", required=True, type=int, dest="job_id")
+    p.set_defaults(func=cmd_dwell_job)
+
+    p = sub.add_parser("dwell-run", help="show one run: diagnostics, index stats, samples, dwells")
+    p.add_argument("--job-id", required=True, type=int, dest="job_id")
+    p.add_argument("--run-id", required=True, dest="run_id")
+    p.set_defaults(func=cmd_dwell_run)
+
+    p = sub.add_parser("dwell-dwells", help="list dwell facts of a job, optionally per run/stop")
+    p.add_argument("--job-id", required=True, type=int, dest="job_id")
+    p.add_argument("--run-id", dest="run_id")
+    p.add_argument("--stop-id", dest="stop_id")
+    p.set_defaults(func=cmd_dwell_dwells)
+
+    p = sub.add_parser("dwell-evidence",
+                       help="expand one dwell fact into its raw supporting samples and lines")
+    p.add_argument("--job-id", required=True, type=int, dest="job_id")
+    p.add_argument("--dwell-seq", required=True, type=int, dest="dwell_seq")
+    p.set_defaults(func=cmd_dwell_evidence)
     return parser
 
 
