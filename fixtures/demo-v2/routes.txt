@@ -1,0 +1,6 @@
+route_id,agency_id,route_short_name,route_long_name,route_type
+R1,DEMO,7,Seven Line,3
+R2,DEMO,8,Eight Line,3
+R3,DEMO,9,Nine Line,3
+R4,DEMO,10,Ten Line,3
+R5,DEMO,11,Eleven Line,3

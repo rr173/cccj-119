@@ -1,0 +1,8 @@
+service_id,date,exception_type,holiday_name
+WKND,20260329,2,spring gap day
+WKND,20260330,1,spring makeup
+WKND_ONLY_ADDED,20260330,1,one-off service
+WKDY,20260403,2,Good Friday
+WKND,20260403,1,Good Friday weekend service
+WKDY,20261025,2,fall back Sunday
+WKND,20261025,1,fall back Sunday weekend service

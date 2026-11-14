@@ -1,0 +1,334 @@
+{
+  "feed": {
+    "feed_key": "demo",
+    "edition": "v1",
+    "timezone": "Europe/Berlin",
+    "archive": "dist/demo-v1.zip"
+  },
+  "service_day_contract": {
+    "description": "day_start_utc = local noon of the service date -> UTC -> minus 12 actual hours; every time is integer seconds added to this instant. Display converts back to Europe/Berlin and records the offset; service_date is always kept separately.",
+    "days": [
+      {
+        "service_date": "2026-03-28",
+        "weekday": "Saturday",
+        "day_start_utc": "2026-03-27T23:00:00Z",
+        "note": "CET +01:00; 26:30:00 -> 2026-03-29T03:30 local because that civil night is only 23 hours long"
+      },
+      {
+        "service_date": "2026-03-29",
+        "weekday": "Sunday",
+        "day_start_utc": "2026-03-28T22:00:00Z",
+        "note": "spring forward at 02:00 CET; anchor is 23:00 local on the 28th (UTC 22:00)"
+      },
+      {
+        "service_date": "2026-03-30",
+        "weekday": "Monday",
+        "day_start_utc": "2026-03-29T22:00:00Z",
+        "note": "CEST +02:00 from the anchor onward"
+      },
+      {
+        "service_date": "2026-10-24",
+        "weekday": "Saturday",
+        "day_start_utc": "2026-10-23T22:00:00Z",
+        "note": "CEST +02:00; 26:30:00 is 02:30 on 2026-10-25 which occurs twice (ambiguous); the contract does not care because seconds are counted from the anchor"
+      },
+      {
+        "service_date": "2026-10-25",
+        "weekday": "Sunday",
+        "day_start_utc": "2026-10-24T23:00:00Z",
+        "note": "fall back at 03:00 CEST -> 02:00 CET; anchor is 01:00 local CEST, 12 actual hours before 13:00 local"
+      },
+      {
+        "service_date": "2026-10-26",
+        "weekday": "Monday",
+        "day_start_utc": "2026-10-25T23:00:00Z",
+        "note": "CET +01:00"
+      }
+    ],
+    "sample_offsets": {
+      "2026-03-28": [
+        {
+          "offset_seconds": 0,
+          "local": "2026-03-28T00:00:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-03-27T23:00:00Z"
+        },
+        {
+          "offset_seconds": 28800,
+          "local": "2026-03-28T08:00:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-03-28T07:00:00Z"
+        },
+        {
+          "offset_seconds": 90600,
+          "local": "2026-03-29T01:10:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-03-29T00:10:00Z"
+        },
+        {
+          "offset_seconds": 95400,
+          "local": "2026-03-29T03:30:00",
+          "utc_offset": "+02:00",
+          "utc": "2026-03-29T01:30:00Z",
+          "note": "the local clock and offset change inside this single service day; 02:30 does not exist"
+        }
+      ],
+      "2026-03-29": [
+        {
+          "offset_seconds": 0,
+          "local": "2026-03-28T23:00:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-03-28T22:00:00Z"
+        },
+        {
+          "offset_seconds": 3600,
+          "local": "2026-03-29T00:00:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-03-28T23:00:00Z"
+        },
+        {
+          "offset_seconds": 7200,
+          "local": "2026-03-29T01:00:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-03-29T00:00:00Z"
+        },
+        {
+          "offset_seconds": 90000,
+          "local": "2026-03-30T01:00:00",
+          "utc_offset": "+02:00",
+          "utc": "2026-03-29T23:00:00Z"
+        }
+      ],
+      "2026-10-24": [
+        {
+          "offset_seconds": 0,
+          "local": "2026-10-24T00:00:00",
+          "utc_offset": "+02:00",
+          "utc": "2026-10-23T22:00:00Z"
+        },
+        {
+          "offset_seconds": 90600,
+          "local": "2026-10-25T01:10:00",
+          "utc_offset": "+02:00",
+          "utc": "2026-10-24T23:10:00Z"
+        },
+        {
+          "offset_seconds": 95400,
+          "local": "2026-10-25T02:30:00",
+          "utc_offset": "+02:00",
+          "utc": "2026-10-25T00:30:00Z",
+          "note": "first occurrence of the ambiguous 02:30, CEST +02:00"
+        }
+      ],
+      "2026-10-25": [
+        {
+          "offset_seconds": 0,
+          "local": "2026-10-25T01:00:00",
+          "utc_offset": "+02:00",
+          "utc": "2026-10-24T23:00:00Z"
+        },
+        {
+          "offset_seconds": 3600,
+          "local": "2026-10-25T02:00:00",
+          "utc_offset": "+02:00",
+          "utc": "2026-10-25T00:00:00Z"
+        },
+        {
+          "offset_seconds": 7200,
+          "local": "2026-10-25T02:00:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-10-25T01:00:00Z"
+        },
+        {
+          "offset_seconds": 95400,
+          "local": "2026-10-26T02:30:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-10-26T01:30:00Z"
+        }
+      ],
+      "2026-10-26": [
+        {
+          "offset_seconds": 0,
+          "local": "2026-10-26T00:00:00",
+          "utc_offset": "+01:00",
+          "utc": "2026-10-25T23:00:00Z"
+        }
+      ]
+    }
+  },
+  "expected_departures": {
+    "2026-03-30": {
+      "007": {
+        "count": 41,
+        "exact_count": 39,
+        "headway_count": 2,
+        "notable": [
+          {
+            "trip_id": "T_WKDY",
+            "instance": "T:T_WKDY",
+            "stop_sequence": 10,
+            "departure_seconds": 28800,
+            "local": "2026-03-30T08:00:00",
+            "utc_offset": "+02:00",
+            "utc": "2026-03-30T06:00:00Z"
+          },
+          {
+            "trip_id": "T_FREQ_EXACT",
+            "instance": "F:T_FREQ_EXACT:0:0",
+            "departure_seconds": 34200,
+            "local": "2026-03-30T09:30:00",
+            "utc": "2026-03-30T07:30:00Z"
+          },
+          {
+            "trip_id": "T_FREQ_EXACT",
+            "instance": "F:T_FREQ_EXACT:1:11",
+            "departure_seconds": 49800,
+            "local": "2026-03-30T13:50:00",
+            "utc": "2026-03-30T11:50:00Z",
+            "note": "12:00 interval end excluded; 14:00 interval end excluded; 13:50 is last of second interval"
+          },
+          {
+            "trip_id": "T_ADJACENT",
+            "instance": "F:T_ADJACENT:4:0",
+            "departure_seconds": 50400,
+            "local": "2026-03-30T14:00:00",
+            "note": "start of the second touching interval"
+          },
+          {
+            "trip_id": "T_ADJACENT",
+            "instance": "F:T_ADJACENT:4:1",
+            "departure_seconds": 52200
+          },
+          {
+            "trip_id": "T_LATE",
+            "instance": "T:T_LATE",
+            "stop_sequence": 1,
+            "departure_seconds": 90600,
+            "local": "2026-03-31T01:10:00",
+            "utc_offset": "+02:00",
+            "utc": "2026-03-30T23:10:00Z"
+          },
+          {
+            "trip_id": "T_WKND_LATE",
+            "instance": "T:T_WKND_LATE",
+            "departure_seconds": 95400,
+            "local": "2026-03-31T02:30:00",
+            "utc_offset": "+02:00",
+            "utc": "2026-03-31T00:30:00Z"
+          }
+        ],
+        "headway_windows": [
+          {
+            "trip_id": "T_FREQ_WINDOW",
+            "min": 25200,
+            "max": 32400,
+            "headway_secs": 300
+          },
+          {
+            "trip_id": "T_FREQ_DEFAULT",
+            "min": 61200,
+            "max": 64800,
+            "headway_secs": 1200
+          }
+        ]
+      },
+      "7": {
+        "count": 1,
+        "trip_id": "T_ID7",
+        "local": "2026-03-30T15:00:00"
+      },
+      "S2": {
+        "count": 41,
+        "notable": [
+          {
+            "trip_id": "T_WKDY",
+            "departure_seconds": 29130,
+            "local": "2026-03-30T08:05:30"
+          },
+          {
+            "trip_id": "T_FREQ_DEFAULT",
+            "instance": "W:T_FREQ_DEFAULT:6",
+            "departure_seconds": 61620,
+            "local": "2026-03-30T17:07:00",
+            "note": "exact_times omitted -> default 0; stop-level window [17:00+offset,18:00+offset)"
+          },
+          {
+            "trip_id": "T_MIDNIGHT",
+            "instance": "F:T_MIDNIGHT:5:0",
+            "departure_seconds": 85800,
+            "local": "2026-03-30T23:50:00"
+          },
+          {
+            "trip_id": "T_MIDNIGHT",
+            "instance": "F:T_MIDNIGHT:5:2",
+            "departure_seconds": 89400,
+            "local": "2026-03-31T00:50:00",
+            "note": "last generated departure is 24:30; the S2 call at 24:50 exceeds the window end and is retained"
+          }
+        ]
+      }
+    },
+    "2026-03-28": {
+      "007": {
+        "count": 41,
+        "notable": [
+          {
+            "trip_id": "T_SAT_REMOVED",
+            "departure_seconds": 43200,
+            "local": "2026-03-28T12:00:00"
+          },
+          {
+            "trip_id": "T_WKND_LATE",
+            "departure_seconds": 95400,
+            "local": "2026-03-29T03:30:00",
+            "utc": "2026-03-29T01:30:00Z",
+            "note": "02:30 never existed locally; seconds from the anchor make it 03:30 CEST"
+          }
+        ]
+      }
+    },
+    "2026-03-29": {
+      "note": "WKND removed by calendar_dates; no trips at all",
+      "007": {
+        "count": 0
+      }
+    },
+    "2026-04-03": {
+      "007": {
+        "count": 2,
+        "note": "WKDY removed, WKND added by calendar_dates: only the Saturday/Sunday services run",
+        "trips": [
+          "T_WKND",
+          "T_WKND_LATE"
+        ]
+      }
+    },
+    "2026-04-04": {
+      "007": {
+        "count": 41,
+        "note": "Good Friday exception does not affect Saturday; normal Saturday service"
+      }
+    },
+    "2026-10-25": {
+      "007": {
+        "count": 2,
+        "note": "calendar removal of WKDY and addition of WKND; WKND_LATE 26:30 is unambiguous under the anchor contract",
+        "notable": [
+          {
+            "trip_id": "T_WKND",
+            "departure_seconds": 37800,
+            "local": "2026-10-25T10:30:00",
+            "utc_offset": "+01:00"
+          },
+          {
+            "trip_id": "T_WKND_LATE",
+            "departure_seconds": 95400,
+            "local": "2026-10-26T02:30:00",
+            "utc_offset": "+01:00",
+            "utc": "2026-10-26T01:30:00Z"
+          }
+        ]
+      }
+    }
+  }
+}

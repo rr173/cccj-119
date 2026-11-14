@@ -1,0 +1,12 @@
+stop_id,stop_name,stop_lat,stop_lon
+007,Station Seven,52.5200,13.4050
+7,Station Seven (duplicate-looking id),52.5201,13.4051
+S2,Second Street,52.5210,13.4100
+S3,"Third Street, Platform 1",52.5220,13.4150
+S4,Fourth Street,52.5230,13.4200
+S5,Fifth Street,52.5240,13.4250
+S6,Sixth Street,52.5250,13.4300
+S7,Seventh Street,52.5260,13.4350
+S8,Eighth Street,52.5270,13.4400
+S9,Ninth Street,52.5280,13.4450
+SA,Tenth Street,52.5290,13.4500

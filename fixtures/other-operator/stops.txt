@@ -1,0 +1,4 @@
+stop_id,stop_name,stop_lat,stop_lon
+007,Other Station Seven,48.1370,11.5750
+7,Other Station Seven pseudo-dup,48.1371,11.5751
+S2,Other Second Street,48.1380,11.5760
